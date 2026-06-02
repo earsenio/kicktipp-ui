@@ -26,7 +26,7 @@ async function main() {
     console.log();
 
     if (Array.isArray(communities) && communities.length > 0) {
-      await testTool("set_community", { community: communities[0] });
+      await testTool("set_community", { name: communities[0] });
       console.log();
 
       await testTool("get_today_matches");
