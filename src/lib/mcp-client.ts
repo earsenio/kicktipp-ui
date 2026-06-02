@@ -18,7 +18,7 @@ async function connect(): Promise<Client> {
   const { email, password } = getCredentials();
 
   const transport = new StdioClientTransport({
-    command: "kicktipp-agent",
+    command: "kicktipp-mcp",
     env: {
       ...process.env as Record<string, string>,
       KICKTIPP_EMAIL: email,
@@ -59,7 +59,7 @@ export async function callTool(
   args?: Record<string, unknown>
 ): Promise<unknown> {
   const client = await getClient();
-  const result = await client.callTool({ name, arguments: args });
+  const result = await client.callTool({ name, arguments: args ?? {} });
 
   if (result.isError) {
     throw new Error(

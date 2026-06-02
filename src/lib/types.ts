@@ -1,117 +1,180 @@
+// ── get_status ──
+
 export interface KicktippStatus {
-  authenticated: boolean;
-  email: string;
-  community?: string;
-  player?: string;
+  credentials_saved: boolean;
+  community: string | null;
+  player: string | null;
+  setup_needed: boolean;
+  setup_instructions: string | null;
 }
+
+// ── get_today_matches ──
 
 export interface TodayMatch {
-  homeTeam: string;
-  awayTeam: string;
-  kickoffTime: string;
-  homeScore?: number;
-  awayScore?: number;
-  homeBet?: number;
-  awayBet?: number;
-  status: "upcoming" | "live" | "finished";
-  matchday?: number;
+  time: string;
+  home: string;
+  away: string;
+  bet: string;
+  odds: { home: string; draw: string; away: string };
+  needsBet: boolean;
 }
 
-export interface MatchBet {
-  homeTeam: string;
-  awayTeam: string;
-  kickoffTime: string;
-  homeScore?: number;
-  awayScore?: number;
-  homeBet?: number;
-  awayBet?: number;
-  points?: number;
-  status: "upcoming" | "live" | "finished";
+export interface TodayMatchesResponse {
+  title: string;
+  matches: TodayMatch[];
 }
 
-export interface ScheduleMatchday {
-  matchday: number;
-  startDate: string;
-  endDate?: string;
-  matches: Array<{
-    homeTeam: string;
-    awayTeam: string;
-    homeScore?: number;
-    awayScore?: number;
-    kickoffTime: string;
-  }>;
+// ── get_bets ──
+
+export interface BetMatch {
+  date: string;
+  home: string;
+  away: string;
+  bet: string;
+  odds: { home: string; draw: string; away: string };
 }
 
-export interface LeaderboardPlayer {
-  rank: number;
+export interface BetsResponse {
+  title: string;
+  matches: BetMatch[];
+}
+
+// ── get_schedule ──
+
+export interface ScheduleMatch {
+  date: string;
+  home: string;
+  away: string;
+  result: string;
+}
+
+export interface ScheduleResponse {
+  title: string;
+  matches: ScheduleMatch[];
+}
+
+// ── get_leaderboard ──
+
+export interface LeaderboardRanking {
+  position: string;
   name: string;
-  points: number;
-  correctExact?: number;
-  correctDifference?: number;
-  correctTendency?: number;
-  wrong?: number;
+  matchdayPoints: string;
+  bonus: string;
+  total: string;
+  isCurrentPlayer: boolean;
 }
 
-export interface OverviewMatchday {
-  matchday: number;
-  points: number;
-  rank?: number;
-  totalPlayers?: number;
+export interface LeaderboardBonusQuestion {
+  abbreviation: string;
+  question: string;
+  result: string;
 }
 
-export interface OverviewData {
-  matchdays: OverviewMatchday[];
-  totalPoints: number;
-  currentRank?: number;
+export interface LeaderboardResponse {
+  title: string;
+  matches?: ScheduleMatch[];
+  bonusQuestions?: LeaderboardBonusQuestion[];
+  rankings: LeaderboardRanking[];
 }
 
-export interface TableEntry {
-  rank: number;
-  team: string;
-  played: number;
-  won: number;
-  drawn: number;
-  lost: number;
-  goalsFor: number;
-  goalsAgainst: number;
-  goalDifference: number;
-  points: number;
-}
+// ── get_overview ──
 
-export interface Community {
+export interface OverviewPlayer {
+  position: string;
   name: string;
-  id?: string;
-  active: boolean;
+  matchdays: Record<number, string>;
+  bonus: string;
+  wins: string;
+  total: string;
+  isCurrentPlayer: boolean;
 }
 
-export interface Player {
-  name: string;
-  id?: string;
-  active: boolean;
-}
-
-export interface BonusQuestionOption {
+export interface OverviewResponse {
   label: string;
-  value: string;
-  selected?: boolean;
+  maxMatchday: number;
+  players: OverviewPlayer[];
+}
+
+// ── get_table ──
+
+export interface TableTeam {
+  position: string;
+  team: string;
+  played: string;
+  points: string;
+  goalsFor: string;
+  goalsAgainst: string;
+  goalDifference: string;
+  wins: string;
+  draws: string;
+  losses: string;
+}
+
+export interface TableResponse {
+  label: string;
+  teams: TableTeam[];
+}
+
+// ── get_rules ──
+
+export interface RulesSection {
+  type: "heading" | "paragraph" | "table";
+  text?: string;
+  headers?: string[];
+  rows?: string[][];
+}
+
+// ── get_bonus_questions ──
+
+export interface BonusQuestionSelect {
+  name: string;
+  options: Array<{ value: string; text: string }>;
+  selected: string;
 }
 
 export interface BonusQuestion {
   question: string;
-  options: BonusQuestionOption[];
-  answer?: string;
-  points?: number;
-  deadline?: string;
+  selects: BonusQuestionSelect[];
 }
 
-export interface GameRules {
-  exactScore: number;
-  goalDifference: number;
-  tendency: number;
-  wrong: number;
-  bonusPoints?: number;
-  description?: string;
+// ── set_community / set_player ──
+
+export interface SetResult {
+  success: boolean;
+  community?: string;
+  player?: string;
+  error?: string;
 }
+
+// ── place_bets ──
+
+export interface PlacedBet {
+  home: string;
+  away: string;
+  homeGoals: number;
+  awayGoals: number;
+}
+
+export interface PlaceBetsResult {
+  success: boolean;
+  dry_run: boolean;
+  placed: PlacedBet[];
+}
+
+// ── place_bonus_bets ──
+
+export interface PlacedBonusBet {
+  question: string;
+  answer: string;
+}
+
+export interface PlaceBonusBetsResult {
+  success: boolean;
+  dry_run: boolean;
+  placed: PlacedBonusBet[];
+}
+
+// ── API wrapper types ──
 
 export interface ApiResponse<T> {
   data: T;
@@ -123,6 +186,8 @@ export interface ApiError {
   error: string;
   code: "MCP_ERROR" | "TOOL_NOT_FOUND" | "CREDENTIALS_MISSING";
 }
+
+// ── Tool registry ──
 
 export const VALID_TOOLS = [
   "get_status",

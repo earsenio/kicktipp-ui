@@ -42,7 +42,7 @@ Set in `.env.local` for development, in Railway dashboard for production.
 
 ## MCP Server — 15 Available Tools
 
-The kicktipp-agent is installed globally (`npm install -g kicktipp-agent`). It is invoked as a subprocess by `src/lib/mcp-client.ts`.
+The kicktipp-agent ([christianheidorn/kicktipp-agent](https://github.com/christianheidorn/kicktipp-agent)) exposes the `kicktipp-mcp` binary (stdio transport). For local development: clone the repo, `npm install && npx playwright install chromium && npm run build && npm link`. It is invoked as a subprocess by `src/lib/mcp-client.ts`.
 
 | Tool | Description | Expensive? |
 |------|-------------|-----------|
@@ -162,9 +162,9 @@ The `skipCache: true` flag is used after write operations (place_bets, place_bon
 
 Batch prediction is the most important interaction in the app. Always design bet placement to support submitting multiple predictions at once.
 
-The `place_bets` MCP tool accepts a comma-separated string:
-```
-"FC Bayern vs Dortmund=2:1, RB Leipzig vs Leverkusen=0:0"
+The `place_bets` MCP tool accepts an array of strings (each `"Home vs Away=H:G"`):
+```json
+{ "bets": ["FC Bayern vs Dortmund=2:1", "RB Leipzig vs Leverkusen=0:0"], "matchday": 15, "dry_run": false }
 ```
 
 UI pattern: the `/matchday/[n]` page renders all matches as a grid of score inputs. The user fills in all scores freely, then hits one **"Submit All Predictions"** button. Partial submission is also supported (only filled inputs are sent).
