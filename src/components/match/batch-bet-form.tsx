@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, API_BASE } from "@/lib/utils";
 import { MatchCardBet } from "@/components/match/match-card";
 import { MatchdayPills } from "@/components/shared/matchday-pills";
 import { Loader2, Check } from "lucide-react";
@@ -80,7 +80,7 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
     });
 
     try {
-      const res = await fetch("/api/kicktipp", {
+      const res = await fetch(`${API_BASE}/api/kicktipp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -110,12 +110,12 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 1500);
 
-      fetch("/api/kicktipp", {
+      fetch(`${API_BASE}/api/kicktipp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tool: "get_bets", args: { matchday }, skipCache: true }),
       });
-      fetch("/api/kicktipp", {
+      fetch(`${API_BASE}/api/kicktipp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tool: "get_today_matches", skipCache: true }),

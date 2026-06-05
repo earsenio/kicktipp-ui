@@ -1,17 +1,11 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-const globalStore = globalThis as typeof globalThis & {
-  __mcpClient?: Client;
-  __mcpTransport?: StdioClientTransport;
-  __mcpConnectionPromise?: Promise<Client>;
-  __mcpQueue?: Promise<unknown>;
-  __mcpInflight?: Map<string, Promise<unknown>>;
-  __mcpCleanupRegistered?: boolean;
-};
-
-if (!globalStore.__mcpQueue) globalStore.__mcpQueue = Promise.resolve();
-if (!globalStore.__mcpInflight) globalStore.__mcpInflight = new Map();
+let mcpClient: Client | undefined;
+let mcpTransport: StdioClientTransport | undefined;
+let connectionPromise: Promise<Client> | undefined;
+let queue: Promise<unknown> = Promise.resolve();
+const inflight = new Map<string, Promise<unknown>>();
 
 const CALL_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 2;
@@ -27,18 +21,13 @@ function getCredentials() {
 }
 
 function registerCleanup() {
-  if (globalStore.__mcpCleanupRegistered) return;
-  globalStore.__mcpCleanupRegistered = true;
-
   const cleanup = () => {
-    if (globalStore.__mcpTransport) {
-      try {
-        globalStore.__mcpTransport.close();
-      } catch {}
+    if (mcpTransport) {
+      try { mcpTransport.close(); } catch {}
     }
-    globalStore.__mcpClient = undefined;
-    globalStore.__mcpTransport = undefined;
-    globalStore.__mcpConnectionPromise = undefined;
+    mcpClient = undefined;
+    mcpTransport = undefined;
+    connectionPromise = undefined;
   };
 
   process.on("exit", cleanup);
@@ -46,15 +35,15 @@ function registerCleanup() {
   process.on("SIGINT", () => { cleanup(); process.exit(0); });
 }
 
+let cleanupRegistered = false;
+
 async function connect(): Promise<Client> {
   const { email, password } = getCredentials();
 
-  if (globalStore.__mcpTransport) {
-    try {
-      await globalStore.__mcpTransport.close();
-    } catch {}
-    globalStore.__mcpTransport = undefined;
-    globalStore.__mcpClient = undefined;
+  if (mcpTransport) {
+    try { await mcpTransport.close(); } catch {}
+    mcpTransport = undefined;
+    mcpClient = undefined;
   }
 
   const transport = new StdioClientTransport({
@@ -73,27 +62,30 @@ async function connect(): Promise<Client> {
 
   await client.connect(transport);
 
-  globalStore.__mcpTransport = transport;
-  globalStore.__mcpClient = client;
+  mcpTransport = transport;
+  mcpClient = client;
 
-  registerCleanup();
+  if (!cleanupRegistered) {
+    registerCleanup();
+    cleanupRegistered = true;
+  }
 
   return client;
 }
 
 async function getClient(): Promise<Client> {
-  if (globalStore.__mcpClient) return globalStore.__mcpClient;
+  if (mcpClient) return mcpClient;
 
-  if (!globalStore.__mcpConnectionPromise) {
-    globalStore.__mcpConnectionPromise = connect().catch((err) => {
-      globalStore.__mcpConnectionPromise = undefined;
-      globalStore.__mcpClient = undefined;
-      globalStore.__mcpTransport = undefined;
+  if (!connectionPromise) {
+    connectionPromise = connect().catch((err) => {
+      connectionPromise = undefined;
+      mcpClient = undefined;
+      mcpTransport = undefined;
       throw err;
     });
   }
 
-  return globalStore.__mcpConnectionPromise;
+  return connectionPromise;
 }
 
 function inflightKey(name: string, args?: Record<string, unknown>): string {
@@ -148,9 +140,6 @@ async function executeCall(
       return content;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      if (process.env.NODE_ENV === "development") {
-        console.error(`[MCP] ${name} attempt ${attempt + 1} failed:`, lastError.message);
-      }
       if (attempt < MAX_RETRIES) {
         await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
       }
@@ -171,9 +160,9 @@ async function callToolInner(
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
     if (msg.includes("Not connected") || msg.includes("EPIPE") || msg.includes("ECONNRESET")) {
-      globalStore.__mcpClient = undefined;
-      globalStore.__mcpTransport = undefined;
-      globalStore.__mcpConnectionPromise = undefined;
+      mcpClient = undefined;
+      mcpTransport = undefined;
+      connectionPromise = undefined;
       client = await getClient();
       return executeCall(client, name, args);
     }
@@ -186,13 +175,12 @@ export async function callTool(
   args?: Record<string, unknown>
 ): Promise<unknown> {
   const key = inflightKey(name, args);
-  const inflight = globalStore.__mcpInflight!;
 
   const existing = inflight.get(key);
   if (existing) return existing;
 
   const promise = new Promise<unknown>((resolve, reject) => {
-    globalStore.__mcpQueue = globalStore.__mcpQueue!.then(
+    queue = queue.then(
       () => callToolInner(name, args).then(resolve, reject),
       () => callToolInner(name, args).then(resolve, reject)
     );
@@ -202,13 +190,4 @@ export async function callTool(
   promise.finally(() => inflight.delete(key));
 
   return promise;
-}
-
-export async function disconnectClient(): Promise<void> {
-  if (globalStore.__mcpTransport) {
-    await globalStore.__mcpTransport.close();
-  }
-  globalStore.__mcpClient = undefined;
-  globalStore.__mcpTransport = undefined;
-  globalStore.__mcpConnectionPromise = undefined;
 }

@@ -5,7 +5,7 @@ import type { BonusQuestion, LeaderboardResponse } from "@/lib/types";
 import { LeaderboardPodium } from "@/components/leaderboard/leaderboard-table";
 import { toast } from "sonner";
 import { Loader2, ChevronDown, ChevronUp, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, API_BASE } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface SelectState {
@@ -195,7 +195,7 @@ export function BonusContent({ questions, bonusLeaderboard }: Props) {
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/kicktipp", {
+      const res = await fetch(`${API_BASE}/api/kicktipp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

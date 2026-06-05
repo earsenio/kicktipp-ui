@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { CheckCircle2, XCircle, Loader2, ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, API_BASE } from "@/lib/utils";
 
 type Step = "connection" | "community" | "player" | "done";
 
 async function fetchApi(tool: string, args?: Record<string, unknown>) {
-  const res = await fetch("/api/kicktipp", {
+  const res = await fetch(`${API_BASE}/api/kicktipp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tool, args }),
@@ -27,7 +27,7 @@ export default function SetupPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch("/api/kicktipp/status")
+    fetch(`${API_BASE}/api/kicktipp/status`)
       .then((r) => {
         setConnected(r.ok);
         if (r.ok) return r.json();

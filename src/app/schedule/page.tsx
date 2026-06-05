@@ -1,19 +1,22 @@
-import { Suspense } from "react";
-import { callTool } from "@/lib/mcp-client";
+"use client";
+
 import type { ScheduleResponse } from "@/lib/types";
 import { ScheduleContent } from "@/components/schedule/schedule-content";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
+import { useKicktipp } from "@/hooks/use-kicktipp";
 
-export const dynamic = "force-dynamic";
+export default function SchedulePage() {
+  const { data, loading, error } = useKicktipp<ScheduleResponse>({
+    tool: "get_schedule",
+  });
 
-async function ScheduleData() {
-  let data: ScheduleResponse | null = null;
-  let error: string | null = null;
-
-  try {
-    data = (await callTool("get_schedule")) as ScheduleResponse;
-  } catch (err) {
-    error = err instanceof Error ? err.message : "Failed to load schedule";
+  if (loading) {
+    return (
+      <div className="space-y-4 max-w-4xl mx-auto">
+        <div className="h-8 w-40 bg-muted rounded animate-pulse" />
+        <TableSkeleton rows={8} cols={4} />
+      </div>
+    );
   }
 
   if (error || !data) {
@@ -26,19 +29,4 @@ async function ScheduleData() {
   }
 
   return <ScheduleContent data={data} />;
-}
-
-export default function SchedulePage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="space-y-4 max-w-4xl mx-auto">
-          <div className="h-8 w-40 bg-muted rounded animate-pulse" />
-          <TableSkeleton rows={8} cols={4} />
-        </div>
-      }
-    >
-      <ScheduleData />
-    </Suspense>
-  );
 }

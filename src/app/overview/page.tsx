@@ -1,19 +1,22 @@
-import { Suspense } from "react";
-import { callTool } from "@/lib/mcp-client";
+"use client";
+
 import type { OverviewResponse } from "@/lib/types";
 import { OverviewContent } from "@/components/overview/overview-content";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
+import { useKicktipp } from "@/hooks/use-kicktipp";
 
-export const dynamic = "force-dynamic";
+export default function OverviewPage() {
+  const { data, loading, error } = useKicktipp<OverviewResponse>({
+    tool: "get_overview",
+  });
 
-async function OverviewData() {
-  let data: OverviewResponse | null = null;
-  let error: string | null = null;
-
-  try {
-    data = (await callTool("get_overview")) as OverviewResponse;
-  } catch (err) {
-    error = err instanceof Error ? err.message : "Failed to load overview";
+  if (loading) {
+    return (
+      <div className="space-y-4 max-w-4xl mx-auto">
+        <div className="h-8 w-40 bg-muted rounded animate-pulse" />
+        <TableSkeleton rows={14} cols={6} />
+      </div>
+    );
   }
 
   if (error || !data) {
@@ -26,19 +29,4 @@ async function OverviewData() {
   }
 
   return <OverviewContent data={data} />;
-}
-
-export default function OverviewPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="space-y-4 max-w-4xl mx-auto">
-          <div className="h-8 w-40 bg-muted rounded animate-pulse" />
-          <TableSkeleton rows={14} cols={6} />
-        </div>
-      }
-    >
-      <OverviewData />
-    </Suspense>
-  );
 }

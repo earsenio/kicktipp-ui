@@ -1,19 +1,22 @@
-import { Suspense } from "react";
-import { callTool } from "@/lib/mcp-client";
+"use client";
+
 import type { RulesSection } from "@/lib/types";
 import { RulesContent } from "@/components/rules/rules-content";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
+import { useKicktipp } from "@/hooks/use-kicktipp";
 
-export const dynamic = "force-dynamic";
+export default function RulesPage() {
+  const { data, loading, error } = useKicktipp<RulesSection[]>({
+    tool: "get_rules",
+  });
 
-async function RulesData() {
-  let data: RulesSection[] | null = null;
-  let error: string | null = null;
-
-  try {
-    data = (await callTool("get_rules")) as RulesSection[];
-  } catch (err) {
-    error = err instanceof Error ? err.message : "Failed to load rules";
+  if (loading) {
+    return (
+      <div className="space-y-4 max-w-3xl mx-auto">
+        <div className="h-8 w-32 bg-muted rounded animate-pulse" />
+        <TableSkeleton rows={8} cols={3} />
+      </div>
+    );
   }
 
   if (error || !data) {
@@ -26,19 +29,4 @@ async function RulesData() {
   }
 
   return <RulesContent sections={data} />;
-}
-
-export default function RulesPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="space-y-4 max-w-3xl mx-auto">
-          <div className="h-8 w-32 bg-muted rounded animate-pulse" />
-          <TableSkeleton rows={8} cols={3} />
-        </div>
-      }
-    >
-      <RulesData />
-    </Suspense>
-  );
 }

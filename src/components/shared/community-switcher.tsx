@@ -9,9 +9,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { API_BASE } from "@/lib/utils";
 
 async function fetchApi(tool: string, args?: Record<string, unknown>) {
-  const res = await fetch("/api/kicktipp", {
+  const res = await fetch(`${API_BASE}/api/kicktipp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tool, args }),

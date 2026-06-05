@@ -24,6 +24,8 @@ export function minutesUntilKickoff(kickoffTime: string): number {
   return Math.floor(diff / 60000);
 }
 
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+
 export function getInitials(name: string): string {
   return name
     .split(/[\s\-\.]+/)

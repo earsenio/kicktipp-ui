@@ -1,21 +1,25 @@
-import { Suspense } from "react";
-import { callTool } from "@/lib/mcp-client";
+"use client";
+
 import type { LeaderboardResponse, OverviewResponse } from "@/lib/types";
 import { LeaderboardContent } from "@/components/leaderboard/leaderboard-content";
 import { LeaderboardSkeleton } from "@/components/shared/loading-skeleton";
+import { useKicktipp } from "@/hooks/use-kicktipp";
 
-export const dynamic = "force-dynamic";
+export default function LeaderboardPage() {
+  const { data: leaderboard, loading, error } = useKicktipp<LeaderboardResponse>({
+    tool: "get_leaderboard",
+  });
+  const { data: overview } = useKicktipp<OverviewResponse>({
+    tool: "get_overview",
+  });
 
-async function LeaderboardData() {
-  let leaderboard: LeaderboardResponse | null = null;
-  let overview: OverviewResponse | null = null;
-  let error: string | null = null;
-
-  try {
-    leaderboard = (await callTool("get_leaderboard")) as LeaderboardResponse;
-    overview = (await callTool("get_overview").catch(() => null)) as OverviewResponse | null;
-  } catch (err) {
-    error = err instanceof Error ? err.message : "Failed to load leaderboard";
+  if (loading) {
+    return (
+      <div className="space-y-5 max-w-4xl mx-auto">
+        <div className="h-8 w-48 bg-muted rounded animate-pulse" />
+        <LeaderboardSkeleton rows={10} />
+      </div>
+    );
   }
 
   if (error || !leaderboard) {
@@ -32,20 +36,5 @@ async function LeaderboardData() {
       initialData={leaderboard}
       overview={overview}
     />
-  );
-}
-
-export default function LeaderboardPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="space-y-5 max-w-4xl mx-auto">
-          <div className="h-8 w-48 bg-muted rounded animate-pulse" />
-          <LeaderboardSkeleton rows={10} />
-        </div>
-      }
-    >
-      <LeaderboardData />
-    </Suspense>
   );
 }

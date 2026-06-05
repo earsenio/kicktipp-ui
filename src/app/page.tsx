@@ -1,27 +1,32 @@
-import { Suspense } from "react";
-import { callTool } from "@/lib/mcp-client";
+"use client";
+
 import type { TodayMatchesResponse, KicktippStatus } from "@/lib/types";
 import { DashboardContent } from "@/components/dashboard-content";
 import { MatchCardSkeletonGrid } from "@/components/shared/loading-skeleton";
+import { useKicktipp } from "@/hooks/use-kicktipp";
 
-export const dynamic = "force-dynamic";
+export default function DashboardPage() {
+  const { data: status, loading: statusLoading, error: statusError } = useKicktipp<KicktippStatus>({
+    tool: "get_status",
+  });
+  const { data: matches, loading: matchesLoading } = useKicktipp<TodayMatchesResponse>({
+    tool: "get_today_matches",
+    options: { skip: !status || status.setup_needed },
+  });
 
-async function DashboardData() {
-  let matches: TodayMatchesResponse | null = null;
-  let status: KicktippStatus | null = null;
-  let error: string | null = null;
-
-  try {
-    status = (await callTool("get_status")) as KicktippStatus;
-    matches = (await callTool("get_today_matches").catch(() => null)) as TodayMatchesResponse | null;
-  } catch (err) {
-    error = err instanceof Error ? err.message : "Failed to load dashboard";
+  if (statusLoading || matchesLoading) {
+    return (
+      <div className="space-y-6 max-w-4xl mx-auto">
+        <div className="h-8 w-40 bg-muted rounded animate-pulse" />
+        <MatchCardSkeletonGrid count={4} />
+      </div>
+    );
   }
 
-  if (error || !status) {
+  if (statusError || !status) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <p className="text-muted-foreground mb-4">{error || "Unable to connect"}</p>
+        <p className="text-muted-foreground mb-4">{statusError || "Unable to connect"}</p>
         <a href="/setup" className="text-sm underline text-accent-blue">
           Go to Setup
         </a>
@@ -45,19 +50,4 @@ async function DashboardData() {
   }
 
   return <DashboardContent matches={matches} />;
-}
-
-export default function DashboardPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="space-y-6 max-w-4xl mx-auto">
-          <div className="h-8 w-40 bg-muted rounded animate-pulse" />
-          <MatchCardSkeletonGrid count={4} />
-        </div>
-      }
-    >
-      <DashboardData />
-    </Suspense>
-  );
 }

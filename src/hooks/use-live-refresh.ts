@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { API_BASE } from "@/lib/utils";
 
 const POLL_INTERVAL = 60_000;
 
@@ -18,7 +19,7 @@ export function useLiveRefresh(tools: string[]): {
     setRefreshing(true);
     try {
       for (const tool of tools) {
-        await fetch("/api/kicktipp", {
+        await fetch(`${API_BASE}/api/kicktipp`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tool, skipCache: true }),
@@ -35,7 +36,7 @@ export function useLiveRefresh(tools: string[]): {
 
     async function checkLive() {
       try {
-        const res = await fetch("/api/kicktipp", {
+        const res = await fetch(`${API_BASE}/api/kicktipp`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tool: "get_today_matches" }),

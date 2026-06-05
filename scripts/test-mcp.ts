@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
-import { callTool, disconnectClient } from "../src/lib/mcp-client";
+import { callTool } from "../server/lib/mcp-client";
 
 async function testTool(name: string, args?: Record<string, unknown>) {
   console.log(`--- ${name} ${args ? JSON.stringify(args) : ""} ---`);
@@ -57,7 +57,7 @@ async function main() {
     console.error("Unexpected error:", err);
     process.exit(1);
   } finally {
-    await disconnectClient();
+    process.exit(0);
   }
 }
 

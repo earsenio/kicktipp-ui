@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { API_BASE } from "@/lib/utils";
 
 interface UseKicktippOptions<T> {
   tool: string;
@@ -33,7 +34,7 @@ export function useKicktipp<T>({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/kicktipp", {
+      const res = await fetch(`${API_BASE}/api/kicktipp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tool, args }),
