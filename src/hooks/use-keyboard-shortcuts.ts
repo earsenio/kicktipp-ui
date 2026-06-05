@@ -16,13 +16,9 @@ const ROUTES: Record<string, string> = {
 
 export function useKeyboardShortcuts({
   onRefresh,
-  onOpenRules,
-  onCloseModal,
 }: {
   onRefresh?: () => void;
-  onOpenRules?: () => void;
-  onCloseModal?: () => void;
-}) {
+} = {}) {
   const router = useRouter();
   const gPressed = useRef(false);
   const gTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -36,17 +32,6 @@ export function useKeyboardShortcuts({
         target.tagName === "SELECT" ||
         target.isContentEditable
       ) {
-        return;
-      }
-
-      if (e.key === "Escape") {
-        onCloseModal?.();
-        return;
-      }
-
-      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        onOpenRules?.();
         return;
       }
 
@@ -75,7 +60,7 @@ export function useKeyboardShortcuts({
         }
       }
     },
-    [router, onRefresh, onOpenRules, onCloseModal]
+    [router, onRefresh]
   );
 
   useEffect(() => {

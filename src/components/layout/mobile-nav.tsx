@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Goal, Trophy, Calendar, MoreHorizontal } from "lucide-react";
+import { Clock, Trophy, Star, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Sheet,
@@ -12,26 +12,27 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import {
+  Calendar,
   Table2,
   BarChart3,
-  Star,
   Users,
   BookOpen,
   Settings,
+  Home,
 } from "lucide-react";
 import { useState } from "react";
 
 const mainTabs = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/matchday/1", label: "Matchday", icon: Goal },
+  { href: "/matchday/1", label: "Predict", icon: Clock },
   { href: "/leaderboard", label: "Board", icon: Trophy },
-  { href: "/schedule", label: "Schedule", icon: Calendar },
+  { href: "/bonus", label: "Bonus", icon: Star },
 ];
 
 const moreItems = [
-  { href: "/table", label: "Table", icon: Table2 },
+  { href: "/", label: "Dashboard", icon: Home },
+  { href: "/schedule", label: "Schedule", icon: Calendar },
+  { href: "/table", label: "League Table", icon: Table2 },
   { href: "/overview", label: "Overview", icon: BarChart3 },
-  { href: "/bonus", label: "Bonus", icon: Star },
   { href: "/players", label: "Players", icon: Users },
   { href: "/rules", label: "Rules", icon: BookOpen },
   { href: "/setup", label: "Settings", icon: Settings },
@@ -42,56 +43,75 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
 
   const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href.split("/").slice(0, 2).join("/"));
+    href === "/"
+      ? pathname === "/"
+      : pathname.startsWith(href.split("/").slice(0, 2).join("/"));
 
-  const isMoreActive = moreItems.some((item) => isActive(item.href));
+  const isMoreActive =
+    moreItems.some((item) => isActive(item.href)) &&
+    !mainTabs.some((tab) => isActive(tab.href));
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center justify-around h-14">
-        {mainTabs.map((tab) => (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className={cn(
-              "flex flex-col items-center gap-0.5 py-1 px-3 text-xs transition-colors",
-              isActive(tab.href) ? "text-foreground" : "text-muted-foreground"
-            )}
-          >
-            <tab.icon className="h-5 w-5" />
-            <span>{tab.label}</span>
-          </Link>
-        ))}
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-white/[0.06] glass-nav pb-[env(safe-area-inset-bottom)]">
+      <div className="flex items-center justify-around h-[52px]">
+        {mainTabs.map((tab) => {
+          const active = isActive(tab.href);
+          return (
+            <Link
+              key={tab.href}
+              href={tab.href}
+              className={cn(
+                "flex flex-col items-center gap-0.5 py-1 px-3 transition-colors select-none",
+                active
+                  ? "text-primary font-bold"
+                  : "text-white/35"
+              )}
+            >
+              <tab.icon
+                className="h-[22px] w-[22px]"
+                strokeWidth={active ? 2.2 : 1.8}
+              />
+              <span className="text-[10px]">{tab.label}</span>
+            </Link>
+          );
+        })}
 
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
             className={cn(
-              "flex flex-col items-center gap-0.5 py-1 px-3 text-xs transition-colors",
-              isMoreActive ? "text-foreground" : "text-muted-foreground"
+              "flex flex-col items-center gap-0.5 py-1 px-3 transition-colors select-none",
+              isMoreActive
+                ? "text-primary font-bold"
+                : "text-white/35"
             )}
           >
-            <MoreHorizontal className="h-5 w-5" />
-            <span>More</span>
+            <MoreHorizontal
+              className="h-[22px] w-[22px]"
+              strokeWidth={isMoreActive ? 2.2 : 1.8}
+            />
+            <span className="text-[10px]">More</span>
           </SheetTrigger>
           <SheetContent side="bottom" className="pb-[env(safe-area-inset-bottom)]">
             <SheetHeader>
               <SheetTitle>More</SheetTitle>
             </SheetHeader>
-            <div className="grid grid-cols-3 gap-3 py-4">
+            <div className="flex flex-col gap-1.5 py-3">
               {moreItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    "flex flex-col items-center gap-1.5 p-3 rounded-lg transition-colors",
+                    "flex items-center gap-3 px-3.5 py-3 rounded-[14px] transition-colors",
                     isActive(item.href)
-                      ? "bg-accent text-accent-foreground"
-                      : "text-muted-foreground hover:bg-accent/50"
+                      ? "bg-white/[0.03] border border-white/[0.05]"
+                      : "text-white/55 hover:bg-white/[0.03]"
                   )}
                 >
-                  <item.icon className="h-5 w-5" />
-                  <span className="text-xs">{item.label}</span>
+                  <item.icon className="h-5 w-5 shrink-0" />
+                  <div>
+                    <div className="text-sm font-semibold">{item.label}</div>
+                  </div>
                 </Link>
               ))}
             </div>

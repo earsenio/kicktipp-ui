@@ -11,6 +11,7 @@ interface ScoreInputProps {
   disabled?: boolean;
   modified?: boolean;
   saved?: boolean;
+  isFinished?: boolean;
   tabIndex?: number;
   "aria-label"?: string;
 }
@@ -21,6 +22,7 @@ export function ScoreInput({
   disabled = false,
   modified = false,
   saved = false,
+  isFinished = false,
   tabIndex,
   "aria-label": ariaLabel,
 }: ScoreInputProps) {
@@ -28,15 +30,15 @@ export function ScoreInput({
   const [shake, setShake] = useState(false);
 
   const increment = useCallback(() => {
-    if (disabled) return;
-    onChange(value === null ? 0 : Math.min(value + 1, 20));
-  }, [value, onChange, disabled]);
+    if (disabled || isFinished) return;
+    onChange(value === null ? 0 : Math.min(value + 1, 15));
+  }, [value, onChange, disabled, isFinished]);
 
   const decrement = useCallback(() => {
-    if (disabled) return;
+    if (disabled || isFinished) return;
     if (value === null || value <= 0) return;
     onChange(value - 1);
-  }, [value, onChange, disabled]);
+  }, [value, onChange, disabled, isFinished]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowUp") {
@@ -55,7 +57,7 @@ export function ScoreInput({
       return;
     }
     const n = parseInt(raw, 10);
-    if (!isNaN(n) && n >= 0 && n <= 20) {
+    if (!isNaN(n) && n >= 0 && n <= 15) {
       onChange(n);
     } else {
       setShake(true);
@@ -63,17 +65,27 @@ export function ScoreInput({
     }
   };
 
+  if (isFinished) {
+    return (
+      <div className="flex flex-col items-center">
+        <div className="w-12 h-[52px] rounded-xl bg-white/[0.03] border-2 border-white/[0.08] flex items-center justify-center font-mono text-2xl font-extrabold text-white/40">
+          {value !== null ? value : "–"}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col items-center gap-0.5">
+    <div className="flex flex-col items-center gap-1.5">
       <button
         type="button"
         tabIndex={-1}
         disabled={disabled}
         onClick={increment}
-        className="h-6 w-10 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+        className="h-8 w-8 rounded-full bg-white/[0.04] flex items-center justify-center text-white/50 hover:text-white/80 hover:bg-white/[0.08] disabled:opacity-30 transition-all select-none"
         aria-label="Increment"
       >
-        <ChevronUp className="h-3.5 w-3.5" />
+        <ChevronUp className="h-4 w-4" />
       </button>
       <motion.input
         ref={inputRef}
@@ -95,12 +107,12 @@ export function ScoreInput({
         }
         transition={shake ? { duration: 0.3 } : { duration: 0.6 }}
         className={cn(
-          "h-11 w-11 text-center font-mono text-lg font-bold rounded-md border-2 bg-background transition-colors",
-          "focus:outline-none focus:ring-2 focus:ring-ring",
-          disabled && "opacity-40 cursor-not-allowed bg-muted",
-          modified && !saved && "border-accent-amber shadow-[0_0_0_1px_var(--accent-amber)]",
-          saved && "border-accent-green",
-          !modified && !saved && !disabled && "border-border"
+          "w-12 h-[52px] text-center font-mono text-2xl font-extrabold rounded-xl border-2 bg-white/[0.05] transition-all",
+          "focus:outline-none focus:ring-2 focus:ring-primary/50",
+          disabled && "opacity-40 cursor-not-allowed",
+          modified && !saved && "border-amber-500/40",
+          saved && "border-green-500/40",
+          !modified && !saved && !disabled && "border-white/[0.08]"
         )}
       />
       <button
@@ -108,10 +120,10 @@ export function ScoreInput({
         tabIndex={-1}
         disabled={disabled || value === null || value <= 0}
         onClick={decrement}
-        className="h-6 w-10 flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+        className="h-8 w-8 rounded-full bg-white/[0.04] flex items-center justify-center text-white/50 hover:text-white/80 hover:bg-white/[0.08] disabled:opacity-30 transition-all select-none"
         aria-label="Decrement"
       >
-        <ChevronDown className="h-3.5 w-3.5" />
+        <ChevronDown className="h-4 w-4" />
       </button>
     </div>
   );

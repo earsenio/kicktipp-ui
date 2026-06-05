@@ -2,200 +2,175 @@
 
 import { motion } from "framer-motion";
 import type { LeaderboardRanking, OverviewResponse } from "@/lib/types";
-import { cn } from "@/lib/utils";
-import { Card } from "@/components/ui/card";
-import { Trophy, Medal } from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
+import { cn, getInitials } from "@/lib/utils";
 
 interface Props {
   rankings: LeaderboardRanking[];
   overview: OverviewResponse | null;
 }
 
-function MedalIcon({ rank }: { rank: number }) {
-  if (rank === 1)
-    return (
-      <motion.span
-        animate={{ y: [0, -3, 0] }}
-        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <Trophy className="h-4 w-4 text-yellow-500" />
-      </motion.span>
-    );
-  if (rank === 2)
-    return (
-      <motion.span
-        animate={{ y: [0, -3, 0] }}
-        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
-      >
-        <Medal className="h-4 w-4 text-zinc-400" />
-      </motion.span>
-    );
-  if (rank === 3)
-    return (
-      <motion.span
-        animate={{ y: [0, -3, 0] }}
-        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
-      >
-        <Medal className="h-4 w-4 text-amber-700" />
-      </motion.span>
-    );
-  return null;
-}
-
-function MiniSparkline({ values }: { values: number[] }) {
-  if (values.length === 0) return null;
-  const max = Math.max(...values, 1);
-  const data = values.map((v) => ({ v }));
-
-  return (
-    <div className="w-16 h-6 hidden md:block">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-          <Bar dataKey="v" radius={[1, 1, 0, 0]}>
-            {data.map((entry, i) => (
-              <Cell
-                key={i}
-                fill={
-                  entry.v === Math.max(...values)
-                    ? "var(--accent-green)"
-                    : "var(--muted-foreground)"
-                }
-                fillOpacity={0.6 + (entry.v / max) * 0.4}
-              />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
-
-function getSparklineData(
-  playerName: string,
-  overview: OverviewResponse | null
-): number[] {
-  if (!overview) return [];
-  const player = overview.players.find((p) => p.name === playerName);
-  if (!player) return [];
-  const entries = Object.entries(player.matchdays)
-    .map(([k, v]) => ({ md: Number(k), pts: Number(v) || 0 }))
-    .sort((a, b) => a.md - b.md);
-  return entries.slice(-5).map((e) => e.pts);
-}
-
-function getBestMatchday(
-  playerName: string,
-  overview: OverviewResponse | null
-): number | null {
-  if (!overview) return null;
-  const player = overview.players.find((p) => p.name === playerName);
-  if (!player) return null;
-  const vals = Object.values(player.matchdays).map(Number).filter(Boolean);
-  return vals.length > 0 ? Math.max(...vals) : null;
-}
-
 function parseRank(pos: string): number {
   return parseInt(pos.replace(/\D/g, ""), 10) || 0;
 }
 
-export function LeaderboardTable({ rankings, overview }: Props) {
+const podiumColors = {
+  1: {
+    bg: "rgba(234,179,8,0.12)",
+    border: "#eab308",
+    text: "#eab308",
+  },
+  2: {
+    bg: "rgba(161,161,170,0.12)",
+    border: "#71717a",
+    text: "#a1a1aa",
+  },
+  3: {
+    bg: "rgba(180,83,9,0.12)",
+    border: "#92400e",
+    text: "#b45309",
+  },
+} as const;
+
+function PodiumColumn({ player, rank }: { player: LeaderboardRanking; rank: 1 | 2 | 3 }) {
+  const colors = podiumColors[rank];
+  const isFirst = rank === 1;
+  const barHeight = rank === 1 ? "h-14" : rank === 2 ? "h-10" : "h-7";
+  const avatarSize = isFirst ? "w-[50px] h-[50px] text-sm" : "w-[42px] h-[42px] text-xs";
+  const ptsSize = isFirst ? "text-[17px]" : "text-sm";
+
+  return (
+    <div className="flex flex-col items-center gap-1">
+      {isFirst && <div className="text-lg leading-none">👑</div>}
+      <div
+        className={cn("rounded-full flex items-center justify-center font-extrabold", avatarSize)}
+        style={{
+          background: colors.bg,
+          border: `2px solid ${colors.border}`,
+          color: colors.text,
+        }}
+      >
+        {rank}
+      </div>
+      <div className="text-[11px] font-semibold text-center max-w-[72px] truncate">
+        {player.name}
+      </div>
+      <div className={cn("font-mono font-extrabold", ptsSize)} style={{ color: colors.text }}>
+        {player.total}
+      </div>
+      <div
+        className={cn("w-[68px] rounded-t-[10px]", barHeight)}
+        style={{
+          background:
+            rank === 1
+              ? "rgba(234,179,8,0.08)"
+              : rank === 2
+                ? "rgba(161,161,170,0.06)"
+                : "rgba(180,83,9,0.06)",
+        }}
+      />
+    </div>
+  );
+}
+
+function PlayerRow({
+  player,
+  index,
+  accent = "#3b82f6",
+}: {
+  player: LeaderboardRanking;
+  index: number;
+  accent?: string;
+}) {
+  const rank = parseRank(player.position);
+  const isYou = player.isCurrentPlayer;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.03, duration: 0.25 }}
+      className={cn(
+        "flex items-center gap-2.5 py-2.5 px-4 border-b border-white/[0.03] transition-colors",
+        isYou && "border-l-[2.5px]"
+      )}
+      style={
+        isYou
+          ? { background: `${accent}10`, borderLeftColor: accent }
+          : { borderLeftWidth: "2.5px", borderLeftColor: "transparent" }
+      }
+    >
+      <span className="font-mono text-[13px] font-semibold text-white/40 w-[22px] text-center shrink-0">
+        {rank}
+      </span>
+      <div className="w-[30px] h-[30px] rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-bold text-white/35 shrink-0">
+        {getInitials(player.name)}
+      </div>
+      <div className="flex-1 min-w-0 flex items-center">
+        <span
+          className={cn(
+            "text-[13px] truncate",
+            isYou ? "font-bold" : "font-medium"
+          )}
+          style={isYou ? { color: accent } : undefined}
+        >
+          {player.name}
+        </span>
+        {isYou && (
+          <span
+            className="text-[9px] font-bold px-1.5 py-px rounded-[5px] ml-1.5 shrink-0"
+            style={{ background: `${accent}22`, color: accent }}
+          >
+            you
+          </span>
+        )}
+      </div>
+      <div className="text-right shrink-0">
+        <div className="font-mono text-sm font-extrabold">{player.total}</div>
+        <div className="text-[9px] text-white/30 mt-px">
+          {player.matchdayPoints} day · {player.bonus} bon
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+export function LeaderboardPodium({ rankings, overview }: Props) {
   if (rankings.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">
+      <p className="text-sm text-white/40 text-center py-8">
         No rankings available yet.
       </p>
     );
   }
 
-  return (
-    <Card className="overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              <th scope="col" className="text-left p-3 w-14">#</th>
-              <th scope="col" className="text-left p-3">Player</th>
-              <th scope="col" className="text-right p-3 hidden md:table-cell">Trend</th>
-              <th scope="col" className="text-right p-3">Day</th>
-              <th scope="col" className="text-right p-3">Bonus</th>
-              <th scope="col" className="text-right p-3 font-bold">Total</th>
-              <th scope="col" className="text-right p-3 hidden md:table-cell">Best</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rankings.map((r, i) => {
-              const rank = parseRank(r.position);
-              const sparkline = getSparklineData(r.name, overview);
-              const best = getBestMatchday(r.name, overview);
+  const sorted = [...rankings].sort((a, b) => parseRank(a.position) - parseRank(b.position));
+  const top3 = sorted.slice(0, 3);
+  const rest = sorted.slice(3);
 
-              return (
-                <motion.tr
-                  key={r.name}
-                  layout
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04, duration: 0.3, layout: { duration: 0.4 } }}
-                  className={cn(
-                    "border-b border-border last:border-0 transition-colors hover:bg-muted/30",
-                    r.isCurrentPlayer && "bg-primary/8 hover:bg-primary/12",
-                    r.isCurrentPlayer && "sticky bottom-0 z-10"
-                  )}
-                >
-                  <td className="p-3">
-                    <div className="flex items-center gap-1.5">
-                      <MedalIcon rank={rank} />
-                      <span className={cn(
-                        "font-mono text-muted-foreground",
-                        rank <= 3 && "font-bold text-foreground"
-                      )}>
-                        {r.position}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="p-3">
-                    <span className={cn(
-                      "font-medium",
-                      r.isCurrentPlayer && "text-primary font-semibold"
-                    )}>
-                      {r.name}
-                    </span>
-                    {r.isCurrentPlayer && (
-                      <span className="ml-1.5 text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full">
-                        you
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right hidden md:table-cell">
-                    <MiniSparkline values={sparkline} />
-                  </td>
-                  <td className="p-3 text-right font-mono">
-                    {r.matchdayPoints}
-                  </td>
-                  <td className="p-3 text-right font-mono text-muted-foreground">
-                    {r.bonus}
-                  </td>
-                  <td className="p-3 text-right font-mono font-bold">
-                    {r.total}
-                  </td>
-                  <td className="p-3 text-right hidden md:table-cell">
-                    {best !== null && (
-                      <span className="text-xs bg-accent-green/15 text-accent-green px-1.5 py-0.5 rounded font-mono">
-                        {best}
-                      </span>
-                    )}
-                  </td>
-                </motion.tr>
-              );
-            })}
-          </tbody>
-        </table>
+  const hasPodium = top3.length >= 3;
+  const podiumOrder = hasPodium ? [top3[1], top3[0], top3[2]] : top3;
+
+  return (
+    <>
+      {/* Podium */}
+      {hasPodium && (
+        <div className="flex justify-center items-end gap-2.5 px-4 pt-2 pb-1">
+          {podiumOrder.map((p) => {
+            const rank = parseRank(p.position) as 1 | 2 | 3;
+            return <PodiumColumn key={p.name} player={p} rank={rank} />;
+          })}
+        </div>
+      )}
+
+      {/* Divider */}
+      <div className="h-px bg-white/[0.05] mx-4" />
+
+      {/* Player list */}
+      <div>
+        {(hasPodium ? rest : sorted).map((p, i) => (
+          <PlayerRow key={p.name} player={p} index={i} />
+        ))}
       </div>
-    </Card>
+    </>
   );
 }

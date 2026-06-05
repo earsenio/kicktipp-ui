@@ -1,11 +1,16 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import type { OverviewResponse } from "@/lib/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { OverviewHeatmap } from "@/components/stats/overview-heatmap";
-import { OverviewChart } from "@/components/stats/overview-chart";
 import { OverviewStreaks } from "@/components/stats/overview-streaks";
 import { Grid3X3, LineChart, Flame } from "lucide-react";
+
+const OverviewChart = dynamic(
+  () => import("@/components/stats/overview-chart").then((m) => m.OverviewChart),
+  { ssr: false, loading: () => <div className="h-[350px] md:h-[450px] animate-pulse bg-muted rounded-lg" /> }
+);
 
 export function OverviewContent({ data }: { data: OverviewResponse }) {
   return (

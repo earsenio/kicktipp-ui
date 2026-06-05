@@ -1,10 +1,15 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import dynamic from "next/dynamic";
 import type { LeaderboardResponse, LeaderboardRanking } from "@/lib/types";
 import { PlayerCard } from "./player-card";
-import { PlayerDetailDrawer } from "./player-detail-drawer";
 import { Search } from "lucide-react";
+
+const PlayerDetailDrawer = dynamic(
+  () => import("./player-detail-drawer").then((m) => m.PlayerDetailDrawer),
+  { ssr: false }
+);
 
 type SortMode = "rank" | "name" | "points";
 

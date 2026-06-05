@@ -4,11 +4,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ScoreInput } from "@/components/match/score-input";
-import { MatchdaySelector } from "@/components/shared/matchday-selector";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Loader2, RotateCcw, Eraser, Zap, Check } from "lucide-react";
+import { MatchCardBet } from "@/components/match/match-card";
+import { MatchdayPills } from "@/components/shared/matchday-pills";
+import { Loader2, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { BetMatch } from "@/lib/types";
 import { parseScore } from "@/lib/utils";
@@ -66,10 +64,9 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
 
   const pendingCount = modifiedBets.length;
   const totalBets = matches.length;
-  const predictedCount = Object.values(bets).filter(
-    (b) => b.home !== null && b.away !== null
+  const missingCount = Object.values(bets).filter(
+    (b) => b.home === null || b.away === null
   ).length;
-  const missingCount = totalBets - predictedCount;
 
   const handleSubmit = async () => {
     if (pendingCount === 0) return;
@@ -111,7 +108,7 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
 
       toast.success(`${pendingCount} prediction${pendingCount > 1 ? "s" : ""} saved`);
       setJustSaved(true);
-      setTimeout(() => setJustSaved(false), 2000);
+      setTimeout(() => setJustSaved(false), 1500);
 
       fetch("/api/kicktipp", {
         method: "POST",
@@ -130,44 +127,6 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
     }
   };
 
-  const handleReset = () => {
-    setBets((prev) => {
-      const next = { ...prev };
-      Object.keys(next).forEach((k) => {
-        const i = Number(k);
-        next[i] = {
-          ...next[i],
-          home: next[i].originalHome,
-          away: next[i].originalAway,
-          saved: false,
-        };
-      });
-      return next;
-    });
-  };
-
-  const handleClear = () => {
-    setBets((prev) => {
-      const next = { ...prev };
-      Object.keys(next).forEach((k) => {
-        const i = Number(k);
-        next[i] = { ...next[i], home: null, away: null, saved: false };
-      });
-      return next;
-    });
-  };
-
-  const handleQuickFill = (home: number, away: number) => {
-    setBets((prev) => {
-      const next = { ...prev };
-      Object.keys(next).forEach((k) => {
-        const i = Number(k);
-        next[i] = { ...next[i], home, away, saved: false };
-      });
-      return next;
-    });
-  };
-
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (pendingCount > 0) {
@@ -179,148 +138,107 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
   }, [pendingCount]);
 
   return (
-    <div className="space-y-4 max-w-4xl mx-auto">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <MatchdaySelector
-          current={matchday}
-          onChange={(n) => router.push(`/matchday/${n}`)}
-        />
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={handleReset} disabled={pendingCount === 0}>
-            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-            Reset
-          </Button>
-          <Button variant="ghost" size="sm" onClick={handleClear}>
-            <Eraser className="h-3.5 w-3.5 mr-1.5" />
-            Clear
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => handleQuickFill(1, 1)}>
-            <Zap className="h-3.5 w-3.5 mr-1.5" />
-            All 1:1
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => handleQuickFill(2, 1)}>
-            <Zap className="h-3.5 w-3.5 mr-1.5" />
-            All 2:1
-          </Button>
+    <div className="flex flex-col h-full -m-4 md:-m-6">
+      {/* Header */}
+      <div className="px-4 pt-3 pb-1 flex items-start justify-between">
+        <div>
+          <h1 className="text-[22px] font-extrabold tracking-tight">Predictions</h1>
+          <p className="text-xs text-white/40 mt-0.5">{title || `Matchday ${matchday}`}</p>
         </div>
+        {missingCount > 0 && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
+            {missingCount} missing
+          </span>
+        )}
       </div>
 
-      <div className="text-sm text-muted-foreground">
-        {title && <span>{title} · </span>}
-        {totalBets} match{totalBets !== 1 ? "es" : ""} · {predictedCount} predicted · {missingCount} missing
-      </div>
+      {/* Matchday pills */}
+      <MatchdayPills
+        current={matchday}
+        onChange={(n) => router.push(`/matchday/${n}`)}
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* Match cards */}
+      <div className="flex-1 overflow-y-auto px-4 pb-3 flex flex-col gap-2.5 scrollbar-hide">
         {matches.map((match, i) => {
           const bet = bets[i];
           if (!bet) return null;
-
           const modified =
             bet.home !== bet.originalHome || bet.away !== bet.originalAway;
 
           return (
-            <Card
+            <motion.div
               key={`${match.home}-${match.away}-${i}`}
-              className={cn(
-                "p-4 border-2 transition-all",
-                bet.saved && "border-accent-green/40",
-                modified && !bet.saved && "border-accent-amber/40",
-                !modified && !bet.saved && "border-border"
-              )}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.03, duration: 0.25 }}
             >
-              <div className="flex items-center gap-2">
-                <div className="flex-1 text-right">
-                  <p className="text-sm font-medium truncate">{match.home}</p>
-                  <p className="text-[10px] text-muted-foreground">{match.date}</p>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <ScoreInput
-                    value={bet.home}
-                    onChange={(v) => updateBet(i, "home", v)}
-                    modified={modified}
-                    saved={bet.saved}
-                    tabIndex={i * 2 + 1}
-                    aria-label={`${match.home} score`}
-                  />
-                  <span className="text-lg font-bold text-muted-foreground">:</span>
-                  <ScoreInput
-                    value={bet.away}
-                    onChange={(v) => updateBet(i, "away", v)}
-                    modified={modified}
-                    saved={bet.saved}
-                    tabIndex={i * 2 + 2}
-                    aria-label={`${match.away} score`}
-                  />
-                </div>
-
-                <div className="flex-1">
-                  <p className="text-sm font-medium truncate">{match.away}</p>
-                  {match.odds.home && (
-                    <p className="text-[10px] font-mono text-muted-foreground">
-                      {match.odds.home} · {match.odds.draw} · {match.odds.away}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </Card>
+              <MatchCardBet
+                match={match}
+                betState={{
+                  home: bet.home,
+                  away: bet.away,
+                  saved: bet.saved,
+                  modified,
+                }}
+                onBetChange={(field, val) => updateBet(i, field, val)}
+                index={i}
+              />
+            </motion.div>
           );
         })}
       </div>
 
-      {totalBets > 0 && (
-        <div className="sticky bottom-16 md:bottom-4 z-30">
-          <div className="bg-background/95 backdrop-blur-sm border border-border rounded-lg p-3 flex items-center justify-between shadow-lg">
-            <span className="text-sm text-muted-foreground">
-              {pendingCount > 0
-                ? `${pendingCount} unsaved prediction${pendingCount > 1 ? "s" : ""}`
-                : "All changes saved"}
-            </span>
-            <Button
-              onClick={handleSubmit}
-              disabled={pendingCount === 0 || submitting}
-              className="min-w-[180px]"
-            >
-              <AnimatePresence mode="wait">
-                {submitting ? (
-                  <motion.span
-                    key="submitting"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="flex items-center"
-                  >
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Submitting...
-                  </motion.span>
-                ) : justSaved ? (
-                  <motion.span
-                    key="saved"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="flex items-center"
-                  >
-                    <Check className="h-4 w-4 mr-2" />
-                    Saved
-                  </motion.span>
-                ) : pendingCount > 0 ? (
-                  <motion.span
-                    key={`count-${pendingCount}`}
-                    initial={{ scale: 1.2 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                  >
-                    Submit {pendingCount} prediction{pendingCount > 1 ? "s" : ""}
-                  </motion.span>
-                ) : (
-                  <motion.span key="allsaved">All saved</motion.span>
-                )}
-              </AnimatePresence>
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* Submit bar */}
+      <div className="px-4 py-2.5 shrink-0">
+        <button
+          onClick={handleSubmit}
+          disabled={pendingCount === 0 && !submitting}
+          className={cn(
+            "w-full rounded-xl py-3.5 text-sm font-bold transition-all",
+            pendingCount > 0 || submitting
+              ? "bg-primary text-white cursor-pointer"
+              : "bg-white/[0.06] text-white/25 cursor-default"
+          )}
+        >
+          <AnimatePresence mode="wait">
+            {submitting ? (
+              <motion.span
+                key="submitting"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center justify-center gap-2"
+              >
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Submitting...
+              </motion.span>
+            ) : justSaved ? (
+              <motion.span
+                key="saved"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex items-center justify-center gap-2"
+              >
+                <Check className="h-4 w-4" />
+                Saved!
+              </motion.span>
+            ) : pendingCount > 0 ? (
+              <motion.span
+                key={`submit-${pendingCount}`}
+                initial={{ scale: 1.1 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+              >
+                Submit {pendingCount} Prediction{pendingCount > 1 ? "s" : ""}
+              </motion.span>
+            ) : (
+              <motion.span key="allsaved">All Predictions Saved</motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+      </div>
     </div>
   );
 }

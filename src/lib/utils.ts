@@ -23,3 +23,12 @@ export function minutesUntilKickoff(kickoffTime: string): number {
   const diff = new Date(kickoffTime).getTime() - Date.now();
   return Math.floor(diff / 60000);
 }
+
+export function getInitials(name: string): string {
+  return name
+    .split(/[\s\-\.]+/)
+    .slice(0, 3)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
+}
