@@ -2,7 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import { ChevronUp, ChevronDown } from "lucide-react";
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useState } from "react";
+import { motion } from "framer-motion";
 
 interface ScoreInputProps {
   value: number | null;
@@ -24,6 +25,7 @@ export function ScoreInput({
   "aria-label": ariaLabel,
 }: ScoreInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [shake, setShake] = useState(false);
 
   const increment = useCallback(() => {
     if (disabled) return;
@@ -55,6 +57,9 @@ export function ScoreInput({
     const n = parseInt(raw, 10);
     if (!isNaN(n) && n >= 0 && n <= 20) {
       onChange(n);
+    } else {
+      setShake(true);
+      setTimeout(() => setShake(false), 400);
     }
   };
 
@@ -70,7 +75,7 @@ export function ScoreInput({
       >
         <ChevronUp className="h-3.5 w-3.5" />
       </button>
-      <input
+      <motion.input
         ref={inputRef}
         type="text"
         inputMode="numeric"
@@ -81,8 +86,16 @@ export function ScoreInput({
         disabled={disabled}
         tabIndex={tabIndex}
         aria-label={ariaLabel}
+        animate={
+          shake
+            ? { x: [-4, 4, -4, 4, 0] }
+            : saved
+              ? { backgroundColor: ["var(--accent-green)", "transparent"] }
+              : {}
+        }
+        transition={shake ? { duration: 0.3 } : { duration: 0.6 }}
         className={cn(
-          "h-11 w-11 text-center font-mono text-lg font-bold rounded-md border-2 bg-background transition-all",
+          "h-11 w-11 text-center font-mono text-lg font-bold rounded-md border-2 bg-background transition-colors",
           "focus:outline-none focus:ring-2 focus:ring-ring",
           disabled && "opacity-40 cursor-not-allowed bg-muted",
           modified && !saved && "border-accent-amber shadow-[0_0_0_1px_var(--accent-amber)]",

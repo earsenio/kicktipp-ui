@@ -8,7 +8,8 @@ import { ScoreInput } from "@/components/match/score-input";
 import { MatchdaySelector } from "@/components/shared/matchday-selector";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Loader2, RotateCcw, Eraser, Zap } from "lucide-react";
+import { Loader2, RotateCcw, Eraser, Zap, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { BetMatch } from "@/lib/types";
 import { parseScore } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ interface BatchBetFormProps {
 export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
   const [bets, setBets] = useState<Record<number, BetState>>({});
 
   useEffect(() => {
@@ -108,6 +110,8 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
       });
 
       toast.success(`${pendingCount} prediction${pendingCount > 1 ? "s" : ""} saved`);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2000);
 
       fetch("/api/kicktipp", {
         method: "POST",
@@ -277,16 +281,42 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
               disabled={pendingCount === 0 || submitting}
               className="min-w-[180px]"
             >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Submitting...
-                </>
-              ) : pendingCount > 0 ? (
-                `Submit ${pendingCount} prediction${pendingCount > 1 ? "s" : ""}`
-              ) : (
-                "All saved"
-              )}
+              <AnimatePresence mode="wait">
+                {submitting ? (
+                  <motion.span
+                    key="submitting"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center"
+                  >
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Submitting...
+                  </motion.span>
+                ) : justSaved ? (
+                  <motion.span
+                    key="saved"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center"
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Saved
+                  </motion.span>
+                ) : pendingCount > 0 ? (
+                  <motion.span
+                    key={`count-${pendingCount}`}
+                    initial={{ scale: 1.2 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 15 }}
+                  >
+                    Submit {pendingCount} prediction{pendingCount > 1 ? "s" : ""}
+                  </motion.span>
+                ) : (
+                  <motion.span key="allsaved">All saved</motion.span>
+                )}
+              </AnimatePresence>
             </Button>
           </div>
         </div>

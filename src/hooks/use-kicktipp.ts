@@ -1,26 +1,33 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
-interface UseKicktippOptions {
+interface UseKicktippOptions<T> {
   tool: string;
   args?: Record<string, unknown>;
-  skipCache?: boolean;
+  options?: {
+    refreshInterval?: number;
+    skip?: boolean;
+  };
 }
 
 interface UseKicktippResult<T> {
   data: T | null;
-  error: string | null;
   loading: boolean;
-  refetch: () => void;
+  error: string | null;
+  refresh: () => void;
 }
 
-export function useKicktipp<T>({ tool, args, skipCache }: UseKicktippOptions): UseKicktippResult<T> {
+export function useKicktipp<T>({
+  tool,
+  args,
+  options,
+}: UseKicktippOptions<T>): UseKicktippResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
+  const [loading, setLoading] = useState(!options?.skip);
   const argsKey = args ? JSON.stringify(args) : "";
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -29,7 +36,7 @@ export function useKicktipp<T>({ tool, args, skipCache }: UseKicktippOptions): U
       const res = await fetch("/api/kicktipp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool, args, skipCache }),
+        body: JSON.stringify({ tool, args }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Request failed");
@@ -39,12 +46,21 @@ export function useKicktipp<T>({ tool, args, skipCache }: UseKicktippOptions): U
     } finally {
       setLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, argsKey, skipCache]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, argsKey]);
 
   useEffect(() => {
+    if (options?.skip) return;
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, options?.skip]);
 
-  return { data, error, loading, refetch: fetchData };
+  useEffect(() => {
+    if (options?.skip || !options?.refreshInterval) return;
+    intervalRef.current = setInterval(fetchData, options.refreshInterval);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [fetchData, options?.skip, options?.refreshInterval]);
+
+  return { data, error, loading, refresh: fetchData };
 }

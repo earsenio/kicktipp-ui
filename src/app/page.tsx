@@ -1,19 +1,19 @@
+import { Suspense } from "react";
 import { callTool } from "@/lib/mcp-client";
 import type { TodayMatchesResponse, KicktippStatus } from "@/lib/types";
 import { DashboardContent } from "@/components/dashboard-content";
+import { MatchCardSkeletonGrid } from "@/components/shared/loading-skeleton";
 
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
+async function DashboardData() {
   let matches: TodayMatchesResponse | null = null;
   let status: KicktippStatus | null = null;
   let error: string | null = null;
 
   try {
-    [status, matches] = await Promise.all([
-      callTool("get_status") as Promise<KicktippStatus>,
-      callTool("get_today_matches").catch(() => null) as Promise<TodayMatchesResponse | null>,
-    ]);
+    status = (await callTool("get_status")) as KicktippStatus;
+    matches = (await callTool("get_today_matches").catch(() => null)) as TodayMatchesResponse | null;
   } catch (err) {
     error = err instanceof Error ? err.message : "Failed to load dashboard";
   }
@@ -45,4 +45,19 @@ export default async function DashboardPage() {
   }
 
   return <DashboardContent matches={matches} />;
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6 max-w-4xl mx-auto">
+          <div className="h-8 w-40 bg-muted rounded animate-pulse" />
+          <MatchCardSkeletonGrid count={4} />
+        </div>
+      }
+    >
+      <DashboardData />
+    </Suspense>
+  );
 }

@@ -1,5 +1,8 @@
+"use client";
+
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { MatchCountdown } from "@/components/match/match-countdown";
 import type { TodayMatch } from "@/lib/types";
 
 function TeamInitials({ name }: { name: string }) {
@@ -27,6 +30,8 @@ export function MatchCard({ match }: MatchCardProps) {
 
   return (
     <Card
+      role="article"
+      aria-label={`${match.home} vs ${match.away}, kickoff ${match.time}`}
       className={cn(
         "p-4 transition-all border-2",
         needsBet && "border-accent-amber/40 animate-pulse-border",
@@ -56,7 +61,10 @@ export function MatchCard({ match }: MatchCardProps) {
       </div>
 
       <div className="flex items-center justify-between mt-3 text-xs text-muted-foreground">
-        <span>{match.time}</span>
+        <div className="flex items-center gap-2">
+          <span>{match.time}</span>
+          <MatchCountdown time={match.time} />
+        </div>
         {match.odds.home && (
           <span className="font-mono text-[10px]">
             {match.odds.home} · {match.odds.draw} · {match.odds.away}

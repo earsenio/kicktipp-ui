@@ -34,9 +34,10 @@ The goal: users never need to open kicktipp.com again.
 ```
 KICKTIPP_EMAIL=your@email.com
 KICKTIPP_PASSWORD=yourpassword
+KICKTIPP_URL=https://www.kicktipp.fr   # or .de / .com — determines locale-specific URL paths
 ```
 
-Set in `.env.local` for development, in Railway dashboard for production.
+Set in `.env.local` for development, in Railway dashboard for production. `KICKTIPP_URL` defaults to `https://www.kicktipp.com` if not set. Use the domain matching your community's locale (`.fr` for French, `.de` for German, `.com` for English).
 
 ---
 

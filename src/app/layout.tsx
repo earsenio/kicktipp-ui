@@ -6,6 +6,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { Toaster } from "@/components/ui/sonner";
+import { ShortcutsProvider } from "@/components/layout/shortcuts-provider";
+import { PageTransition } from "@/components/layout/page-transition";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,6 +22,13 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Kicktipp",
   description: "Modern web UI for kicktipp.com — sports prediction dashboard",
+  manifest: "/manifest.json",
+  themeColor: "#22c55e",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "KickTipp",
+  },
 };
 
 export default function RootLayout({
@@ -35,17 +44,19 @@ export default function RootLayout({
     >
       <body className="min-h-full">
         <ThemeProvider>
-          <div className="flex h-full">
-            <Sidebar />
-            <div className="flex-1 flex flex-col min-h-screen">
-              <Header />
-              <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6">
-                {children}
-              </main>
+          <ShortcutsProvider>
+            <div className="flex h-full">
+              <Sidebar />
+              <div className="flex-1 flex flex-col min-h-screen">
+                <Header />
+                <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6">
+                  <PageTransition>{children}</PageTransition>
+                </main>
+              </div>
             </div>
-          </div>
-          <MobileNav />
-          <Toaster richColors position="top-right" />
+            <MobileNav />
+            <Toaster richColors position="top-right" />
+          </ShortcutsProvider>
         </ThemeProvider>
       </body>
     </html>
