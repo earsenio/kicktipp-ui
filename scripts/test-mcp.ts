@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
-import { callTool } from "../server/lib/mcp-client";
+import { callTool } from "../server/lib/kicktipp";
 
 async function testTool(name: string, args?: Record<string, unknown>) {
   console.log(`--- ${name} ${args ? JSON.stringify(args) : ""} ---`);

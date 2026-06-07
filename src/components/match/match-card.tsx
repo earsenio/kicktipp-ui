@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, getInitials } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type { TodayMatch, BetMatch } from "@/lib/types";
 import { ScoreInput } from "@/components/match/score-input";
 
@@ -74,35 +74,25 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
         cardState === "default" && "bg-white/[0.03] border-[1.5px] border-white/[0.05]"
       )}
     >
-      {/* Teams row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="w-[30px] h-[30px] rounded-full bg-white/[0.06] flex items-center justify-center text-[9px] font-extrabold text-white/35 tracking-wide shrink-0">
-            {getInitials(match.home)}
-          </div>
-          <span
-            className={cn(
-              "text-[13px] truncate transition-all",
-              homeWins ? "font-extrabold text-foreground" : isFinished ? "text-white/35 font-medium" : "text-white/55 font-medium"
-            )}
-          >
-            {match.home}
-          </span>
-        </div>
-        <span className="text-[9px] font-semibold text-white/[0.12] px-0.5 shrink-0">vs</span>
-        <div className="flex items-center gap-2 flex-1 min-w-0 flex-row-reverse">
-          <div className="w-[30px] h-[30px] rounded-full bg-white/[0.06] flex items-center justify-center text-[9px] font-extrabold text-white/35 tracking-wide shrink-0">
-            {getInitials(match.away)}
-          </div>
-          <span
-            className={cn(
-              "text-[13px] truncate text-right transition-all",
-              awayWins ? "font-extrabold text-foreground" : isFinished ? "text-white/35 font-medium" : "text-white/55 font-medium"
-            )}
-          >
-            {match.away}
-          </span>
-        </div>
+      {/* Teams row — centered */}
+      <div className="flex items-center justify-center gap-2">
+        <span
+          className={cn(
+            "text-sm truncate transition-all text-right",
+            homeWins ? "font-extrabold text-foreground" : isFinished ? "text-white/35 font-medium" : "text-white/55 font-medium"
+          )}
+        >
+          {match.home}
+        </span>
+        <span className="text-[9px] font-semibold text-white/[0.12] shrink-0">vs</span>
+        <span
+          className={cn(
+            "text-sm truncate transition-all",
+            awayWins ? "font-extrabold text-foreground" : isFinished ? "text-white/35 font-medium" : "text-white/55 font-medium"
+          )}
+        >
+          {match.away}
+        </span>
       </div>
 
       {/* Score inputs */}
@@ -180,34 +170,32 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
         </div>
       )}
 
-      {/* Meta row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 text-[11px] text-white/35">
-          {isFinished ? (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white/[0.06] text-white/50">
-              FT
-            </span>
-          ) : (
-            <span>{match.date}</span>
-          )}
-          {!isFinished && hasBet && betState.saved && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-green-500/[0.12] text-green-500">
-              saved
-            </span>
-          )}
-          {!isFinished && hasBet && betState.modified && !betState.saved && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
-              unsaved
-            </span>
-          )}
-          {needsBet && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
-              needs bet
-            </span>
-          )}
-        </div>
+      {/* Meta row — centered */}
+      <div className="flex items-center justify-center flex-wrap gap-2">
+        {isFinished ? (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white/[0.06] text-white/50">
+            FT
+          </span>
+        ) : (
+          <span className="text-[11px] text-white/35">{match.date}</span>
+        )}
+        {!isFinished && hasBet && betState.saved && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-green-500/[0.12] text-green-500">
+            saved
+          </span>
+        )}
+        {!isFinished && hasBet && betState.modified && !betState.saved && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
+            unsaved
+          </span>
+        )}
+        {needsBet && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
+            needs bet
+          </span>
+        )}
         {match.odds.home && (
-          <div className="flex gap-1">
+          <>
             <span className="px-1.5 py-0.5 rounded-md bg-white/[0.03] font-mono text-[10px] text-white/40 border border-white/[0.04]">
               H {match.odds.home}
             </span>
@@ -217,14 +205,13 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
             <span className="px-1.5 py-0.5 rounded-md bg-white/[0.03] font-mono text-[10px] text-white/40 border border-white/[0.04]">
               A {match.odds.away}
             </span>
-          </div>
+          </>
         )}
       </div>
     </div>
   );
 }
 
-// Read-only card for dashboard (today's matches, no editing)
 interface MatchCardProps {
   match: TodayMatch;
 }
@@ -244,25 +231,15 @@ export function MatchCard({ match }: MatchCardProps) {
         !hasBet && !needsBet && "bg-white/[0.03] border-[1.5px] border-white/[0.05]"
       )}
     >
-      {/* Teams row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <div className="w-[30px] h-[30px] rounded-full bg-white/[0.06] flex items-center justify-center text-[9px] font-extrabold text-white/35 tracking-wide shrink-0">
-            {getInitials(match.home)}
-          </div>
-          <span className="text-[13px] font-medium truncate text-white/55">
-            {match.home}
-          </span>
-        </div>
-        <span className="text-[9px] font-semibold text-white/[0.12] px-0.5 shrink-0">vs</span>
-        <div className="flex items-center gap-2 flex-1 min-w-0 flex-row-reverse">
-          <div className="w-[30px] h-[30px] rounded-full bg-white/[0.06] flex items-center justify-center text-[9px] font-extrabold text-white/35 tracking-wide shrink-0">
-            {getInitials(match.away)}
-          </div>
-          <span className="text-[13px] font-medium truncate text-right text-white/55">
-            {match.away}
-          </span>
-        </div>
+      {/* Teams row — centered */}
+      <div className="flex items-center justify-center gap-2">
+        <span className="text-sm font-medium truncate text-white/55">
+          {match.home}
+        </span>
+        <span className="text-[9px] font-semibold text-white/[0.12] shrink-0">vs</span>
+        <span className="text-sm font-medium truncate text-white/55">
+          {match.away}
+        </span>
       </div>
 
       {/* Score display */}
@@ -272,23 +249,21 @@ export function MatchCard({ match }: MatchCardProps) {
         </span>
       </div>
 
-      {/* Meta row */}
-      <div className="flex items-center justify-between text-[11px] text-white/35">
-        <div className="flex items-center gap-1.5">
-          <span>{match.time}</span>
-          {hasBet && !needsBet && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-green-500/[0.12] text-green-500">
-              saved
-            </span>
-          )}
-          {needsBet && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
-              needs bet
-            </span>
-          )}
-        </div>
+      {/* Meta row — centered */}
+      <div className="flex items-center justify-center flex-wrap gap-2">
+        <span className="text-[11px] text-white/35">{match.time}</span>
+        {hasBet && !needsBet && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-green-500/[0.12] text-green-500">
+            saved
+          </span>
+        )}
+        {needsBet && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
+            needs bet
+          </span>
+        )}
         {match.odds.home && (
-          <div className="flex gap-1">
+          <>
             <span className="px-1.5 py-0.5 rounded-md bg-white/[0.03] font-mono text-[10px] text-white/40 border border-white/[0.04]">
               H {match.odds.home}
             </span>
@@ -298,7 +273,7 @@ export function MatchCard({ match }: MatchCardProps) {
             <span className="px-1.5 py-0.5 rounded-md bg-white/[0.03] font-mono text-[10px] text-white/40 border border-white/[0.04]">
               A {match.odds.away}
             </span>
-          </div>
+          </>
         )}
       </div>
     </div>

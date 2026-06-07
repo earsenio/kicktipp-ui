@@ -109,17 +109,6 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
       toast.success(`${pendingCount} prediction${pendingCount > 1 ? "s" : ""} saved`);
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 1500);
-
-      fetch(`${API_BASE}/api/kicktipp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool: "get_bets", args: { matchday }, skipCache: true }),
-      });
-      fetch(`${API_BASE}/api/kicktipp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool: "get_today_matches", skipCache: true }),
-      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to place bets");
     } finally {
@@ -158,8 +147,8 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
         onChange={(n) => router.push(`/matchday/${n}`)}
       />
 
-      {/* Match cards */}
-      <div className="flex-1 overflow-y-auto px-4 pb-3 flex flex-col gap-2.5 scrollbar-hide">
+      {/* Match cards — extra bottom padding for floating submit bar + mobile nav */}
+      <div className="flex-1 overflow-y-auto px-4 pb-28 md:pb-20 flex flex-col gap-2.5 scrollbar-hide">
         {matches.map((match, i) => {
           const bet = bets[i];
           if (!bet) return null;
@@ -189,15 +178,15 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
         })}
       </div>
 
-      {/* Submit bar */}
-      <div className="px-4 py-2.5 shrink-0">
+      {/* Floating submit bar — sits above mobile nav (52px + safe area) */}
+      <div className="fixed bottom-[calc(52px+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 md:left-56 z-40 px-4 py-2.5 glass-nav border-t border-white/[0.06]">
         <button
           onClick={handleSubmit}
           disabled={pendingCount === 0 && !submitting}
           className={cn(
             "w-full rounded-xl py-3.5 text-sm font-bold transition-all",
             pendingCount > 0 || submitting
-              ? "bg-primary text-white cursor-pointer"
+              ? "bg-primary text-white cursor-pointer shadow-lg shadow-primary/25"
               : "bg-white/[0.06] text-white/25 cursor-default"
           )}
         >

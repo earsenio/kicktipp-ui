@@ -37,6 +37,7 @@ export interface BetMatch {
 export interface BetsResponse {
   title: string;
   matches: BetMatch[];
+  maxMatchday: number;
 }
 
 // ── get_schedule ──
@@ -93,26 +94,6 @@ export interface OverviewResponse {
   label: string;
   maxMatchday: number;
   players: OverviewPlayer[];
-}
-
-// ── get_table ──
-
-export interface TableTeam {
-  position: string;
-  team: string;
-  played: string;
-  points: string;
-  goalsFor: string;
-  goalsAgainst: string;
-  goalDifference: string;
-  wins: string;
-  draws: string;
-  losses: string;
-}
-
-export interface TableResponse {
-  label: string;
-  teams: TableTeam[];
 }
 
 // ── get_rules ──
@@ -196,7 +177,6 @@ export const VALID_TOOLS = [
   "get_schedule",
   "get_leaderboard",
   "get_overview",
-  "get_table",
   "get_rules",
   "get_communities",
   "get_players",

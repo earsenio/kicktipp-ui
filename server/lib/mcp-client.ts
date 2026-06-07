@@ -7,7 +7,7 @@ let connectionPromise: Promise<Client> | undefined;
 let queue: Promise<unknown> = Promise.resolve();
 const inflight = new Map<string, Promise<unknown>>();
 
-const CALL_TIMEOUT_MS = 60_000;
+const CALL_TIMEOUT_MS = 30_000;
 const MAX_RETRIES = 2;
 const RETRY_DELAYS = [1000, 2000];
 

@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/sheet";
 import {
   Calendar,
-  Table2,
   BarChart3,
   Users,
   BookOpen,
@@ -23,15 +22,14 @@ import {
 import { useState } from "react";
 
 const mainTabs = [
-  { href: "/matchday/1", label: "Predict", icon: Clock },
+  { href: "/", label: "Predict", icon: Clock },
   { href: "/leaderboard", label: "Board", icon: Trophy },
   { href: "/bonus", label: "Bonus", icon: Star },
 ];
 
 const moreItems = [
-  { href: "/", label: "Dashboard", icon: Home },
+  { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/schedule", label: "Schedule", icon: Calendar },
-  { href: "/table", label: "League Table", icon: Table2 },
   { href: "/overview", label: "Overview", icon: BarChart3 },
   { href: "/players", label: "Players", icon: Users },
   { href: "/rules", label: "Rules", icon: BookOpen },
@@ -44,7 +42,7 @@ export function MobileNav() {
 
   const isActive = (href: string) =>
     href === "/"
-      ? pathname === "/"
+      ? pathname === "/" || pathname.startsWith("/matchday")
       : pathname.startsWith(href.split("/").slice(0, 2).join("/"));
 
   const isMoreActive =

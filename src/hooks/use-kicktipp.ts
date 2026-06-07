@@ -29,8 +29,13 @@ export function useKicktipp<T>({
   const [loading, setLoading] = useState(!options?.skip);
   const argsKey = args ? JSON.stringify(args) : "";
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const fetchData = useCallback(async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError(null);
     try {
@@ -38,14 +43,18 @@ export function useKicktipp<T>({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tool, args }),
+        signal: controller.signal,
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Request failed");
       setData(json.data as T);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool, argsKey]);
@@ -53,6 +62,9 @@ export function useKicktipp<T>({
   useEffect(() => {
     if (options?.skip) return;
     fetchData();
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [fetchData, options?.skip]);
 
   useEffect(() => {

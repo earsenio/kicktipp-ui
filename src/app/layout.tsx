@@ -8,6 +8,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { Toaster } from "@/components/ui/sonner";
 import { ShortcutsProvider } from "@/components/layout/shortcuts-provider";
 import { PageTransition } from "@/components/layout/page-transition";
+import { MatchdayProvider } from "@/components/match/matchday-context";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -49,17 +50,19 @@ export default function RootLayout({
       className={`${dmSans.variable} ${dmMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full">
+      <body className="min-h-dvh">
         <ThemeProvider>
           <ShortcutsProvider>
-            <div className="flex h-full">
+            <div className="flex min-h-dvh overflow-x-hidden">
               <Sidebar />
-              <div className="flex-1 flex flex-col min-h-screen">
-                <Header />
-                <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6">
-                  <PageTransition>{children}</PageTransition>
-                </main>
-              </div>
+              <MatchdayProvider>
+                <div className="flex-1 flex flex-col min-h-dvh min-w-0 pt-14">
+                  <Header />
+                  <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6">
+                    <PageTransition>{children}</PageTransition>
+                  </main>
+                </div>
+              </MatchdayProvider>
             </div>
             <MobileNav />
             <Toaster richColors position="top-right" />

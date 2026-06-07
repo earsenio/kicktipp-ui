@@ -6,7 +6,6 @@ import {
   Home,
   Trophy,
   Calendar,
-  Table2,
   BarChart3,
   Star,
   Users,
@@ -21,11 +20,10 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: Home },
-  { href: "/matchday/1", label: "Matchday", icon: Goal },
+  { href: "/", label: "Predict", icon: Goal },
+  { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/schedule", label: "Schedule", icon: Calendar },
-  { href: "/table", label: "Table", icon: Table2 },
   { href: "/overview", label: "Overview", icon: BarChart3 },
   { href: "/bonus", label: "Bonus", icon: Star },
   { href: "/players", label: "Players", icon: Users },
@@ -61,7 +59,7 @@ export function Sidebar() {
         {navItems.map((item) => {
           const isActive =
             item.href === "/"
-              ? pathname === "/"
+              ? pathname === "/" || pathname.startsWith("/matchday")
               : pathname.startsWith(item.href.split("/").slice(0, 2).join("/"));
           return (
             <Link
