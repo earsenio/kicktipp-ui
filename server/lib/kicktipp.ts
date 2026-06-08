@@ -775,21 +775,16 @@ async function placeBonusBets(session: UserSession, bets: string[], dryRun = fal
 
   for (const arg of bets) {
     const eqIdx = arg.lastIndexOf("=");
-    if (eqIdx === -1) throw new Error(`Invalid bonus bet '${arg}'. Use format: Question text=Answer`);
-    const qText = arg.slice(0, eqIdx).trim();
-    const answer = arg.slice(eqIdx + 1).trim();
+    if (eqIdx === -1) throw new Error(`Invalid bonus bet '${arg}'. Use format: selectName=value`);
+    const name = arg.slice(0, eqIdx).trim();
+    const value = arg.slice(eqIdx + 1).trim();
+    formFields[name] = value;
 
-    const q = questions.find((qq) => qq.question.toLowerCase() === qText.toLowerCase());
-    if (!q) {
-      const available = questions.map((qq) => qq.question).join(", ");
-      throw new Error(`No bonus question found matching: "${qText}". Available: ${available}`);
-    }
-
-    for (const sel of q.selects) {
-      const option = sel.options.find((o) => o.text.toLowerCase() === answer.toLowerCase());
-      if (option) {
-        formFields[sel.name] = option.value;
-        placed.push({ question: q.question, answer: option.text });
+    for (const q of questions) {
+      const sel = q.selects.find((s) => s.name === name);
+      if (sel) {
+        const opt = sel.options.find((o) => o.value === value);
+        placed.push({ question: q.question, answer: opt?.text ?? value });
         break;
       }
     }

@@ -156,7 +156,13 @@ export function BonusContent({ questions, deadline, bonusLeaderboard }: Props) {
     });
     return init;
   });
-  const [selections, setSelections] = useState<SelectState>(() => ({ ...origSelections }));
+  const [selections, setSelections] = useState<SelectState>(() => {
+    const copy: SelectState = {};
+    for (const [qi, qSels] of Object.entries(origSelections)) {
+      copy[Number(qi)] = { ...qSels };
+    }
+    return copy;
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const answered = questions.filter((q, qi) =>
@@ -183,10 +189,7 @@ export function BonusContent({ questions, deadline, bonusLeaderboard }: Props) {
       q.selects.forEach((s, si) => {
         const val = selections[qi]?.[si];
         if (val && val !== "-1" && val !== origSelections[qi]?.[si]) {
-          const option = s.options.find((o) => o.value === val);
-          if (option) {
-            bets.push(`${q.question}=${option.text}`);
-          }
+          bets.push(`${s.name}=${val}`);
         }
       });
     });
