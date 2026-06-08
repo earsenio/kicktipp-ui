@@ -101,6 +101,10 @@ async function autoInit(session: UserSession) {
   }
 }
 
+// ── Health check (unauthenticated, for Railway) ────────────────
+
+app.get("/api/health", (c) => c.json({ ok: true }));
+
 // ── Status endpoint ─────────────────────────────────────────────
 
 app.get("/api/kicktipp/status", async (c) => {
