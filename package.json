@@ -7,6 +7,9 @@
     "type": "git",
     "url": "https://github.com/earsenio/tippkick"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:api": "tsx server/index.ts",

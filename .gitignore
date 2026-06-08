@@ -41,3 +41,6 @@ session-*.json
 
 # MCP config
 .mcp.json
+
+# TypeScript build cache
+tsconfig.tsbuildinfo
