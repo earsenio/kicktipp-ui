@@ -18,21 +18,21 @@ export function LeaderboardContent({ initialData, overview }: Props) {
   return (
     <div className="flex flex-col h-full -m-4 md:-m-6">
       {/* Header */}
-      <div className="px-4 pt-3 pb-1 flex items-start justify-between">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
         <div>
-          <h1 className="text-[22px] font-extrabold tracking-tight">Leaderboard</h1>
-          <p className="text-xs text-white/40 mt-0.5">
+          <h1 className="text-2xl font-extrabold tracking-tight">Leaderboard</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             {initialData.title}
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <div className="flex rounded-[10px] overflow-hidden border border-white/[0.08]">
+          <div className="flex rounded-xl overflow-hidden border border-border">
             <button
               className={cn(
-                "px-3.5 py-1.5 text-[11px] font-semibold transition-all",
+                "px-4 py-2 text-xs font-bold transition-all",
                 view === "matchday"
-                  ? "bg-primary text-white"
-                  : "text-white/40 hover:text-white/60"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               )}
               onClick={() => setView("matchday")}
             >
@@ -40,10 +40,10 @@ export function LeaderboardContent({ initialData, overview }: Props) {
             </button>
             <button
               className={cn(
-                "px-3.5 py-1.5 text-[11px] font-semibold transition-all",
+                "px-4 py-2 text-xs font-bold transition-all",
                 view === "season"
-                  ? "bg-primary text-white"
-                  : "text-white/40 hover:text-white/60"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
               )}
               onClick={() => setView("season")}
             >

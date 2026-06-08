@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import type { TodayMatch, BetMatch } from "@/lib/types";
 import { ScoreInput } from "@/components/match/score-input";
+import { CountryFlag } from "@/components/shared/country-flag";
 
 type ResultType = "correct" | "tendency" | "wrong";
 
@@ -65,34 +66,67 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
   return (
     <div
       className={cn(
-        "rounded-[14px] p-3.5 flex flex-col gap-3 shrink-0 transition-all",
-        cardState === "needs_bet" && "bg-white/[0.03] border-[1.5px] border-amber-500/35",
-        cardState === "saved" && "bg-white/[0.03] border-[1.5px] border-green-500/20",
-        cardState === "finished_correct" && "bg-green-500/[0.03] border-[1.5px] border-green-500/30",
-        cardState === "finished_tendency" && "bg-amber-500/[0.02] border-[1.5px] border-amber-500/25",
-        cardState === "finished_wrong" && "bg-red-500/[0.02] border-[1.5px] border-red-500/15",
-        cardState === "default" && "bg-white/[0.03] border-[1.5px] border-white/[0.05]"
+        "rounded-2xl p-4 flex flex-col gap-3 shrink-0 transition-all border-[1.5px]",
+        cardState === "needs_bet" && "bg-amber-500/[0.04] dark:bg-amber-500/[0.06] border-amber-500/40",
+        cardState === "saved" && "bg-green-500/[0.04] dark:bg-green-500/[0.06] border-green-500/30",
+        cardState === "finished_correct" && "bg-green-500/[0.06] dark:bg-green-500/[0.08] border-green-500/40",
+        cardState === "finished_tendency" && "bg-amber-500/[0.04] dark:bg-amber-500/[0.06] border-amber-500/30",
+        cardState === "finished_wrong" && "bg-red-500/[0.04] dark:bg-red-500/[0.06] border-red-500/25",
+        cardState === "default" && "bg-card border-border"
       )}
     >
-      {/* Teams row — centered */}
+      {/* Date — prominent */}
       <div className="flex items-center justify-center gap-2">
-        <span
-          className={cn(
-            "text-sm truncate transition-all text-right",
-            homeWins ? "font-extrabold text-foreground" : isFinished ? "text-white/35 font-medium" : "text-white/55 font-medium"
-          )}
-        >
-          {match.home}
+        <span className={cn(
+          "text-sm font-semibold px-2.5 py-0.5 rounded-lg",
+          isFinished
+            ? "bg-muted text-muted-foreground"
+            : "bg-primary/10 text-primary dark:bg-primary/20"
+        )}>
+          {isFinished ? "FT" : match.date}
         </span>
-        <span className="text-[9px] font-semibold text-white/[0.12] shrink-0">vs</span>
-        <span
-          className={cn(
-            "text-sm truncate transition-all",
-            awayWins ? "font-extrabold text-foreground" : isFinished ? "text-white/35 font-medium" : "text-white/55 font-medium"
-          )}
-        >
-          {match.away}
-        </span>
+        {!isFinished && hasBet && betState.saved && (
+          <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-green-500/15 text-green-600 dark:text-green-400">
+            saved
+          </span>
+        )}
+        {!isFinished && hasBet && betState.modified && !betState.saved && (
+          <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+            unsaved
+          </span>
+        )}
+        {needsBet && (
+          <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+            needs bet
+          </span>
+        )}
+      </div>
+
+      {/* Teams row */}
+      <div className="flex items-center justify-center gap-3">
+        <div className="flex items-center gap-2">
+          <CountryFlag country={match.home} size={20} className="shrink-0" />
+          <span
+            className={cn(
+              "text-base truncate transition-all",
+              homeWins ? "font-extrabold text-foreground" : isFinished ? "text-muted-foreground" : "font-medium text-foreground/80"
+            )}
+          >
+            {match.home}
+          </span>
+        </div>
+        <span className="text-xs font-bold text-muted-foreground/50 shrink-0">vs</span>
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "text-base truncate transition-all",
+              awayWins ? "font-extrabold text-foreground" : isFinished ? "text-muted-foreground" : "font-medium text-foreground/80"
+            )}
+          >
+            {match.away}
+          </span>
+          <CountryFlag country={match.away} size={20} className="shrink-0" />
+        </div>
       </div>
 
       {/* Score inputs */}
@@ -106,7 +140,7 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
           tabIndex={index * 2 + 1}
           aria-label={`${match.home} score`}
         />
-        <span className="text-[22px] font-extrabold text-white/15 px-0.5">:</span>
+        <span className="text-2xl font-extrabold text-muted-foreground/40 px-1">:</span>
         <ScoreInput
           value={betState.away}
           onChange={(v) => onBetChange("away", v)}
@@ -120,46 +154,46 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
 
       {/* Result display for finished matches */}
       {isFinished && parsed && (
-        <div className="flex flex-col items-center gap-1.5">
-          <div className="text-[9px] font-semibold text-white/30 uppercase tracking-[1px]">
+        <div className="flex flex-col items-center gap-2">
+          <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
             Final Result
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <span
               className={cn(
-                "font-mono text-[28px] font-extrabold",
-                parsed[0] > parsed[1] ? "text-foreground" : "text-white/40"
+                "font-mono text-3xl font-extrabold",
+                parsed[0] > parsed[1] ? "text-foreground" : "text-muted-foreground"
               )}
             >
               {parsed[0]}
             </span>
-            <span className="text-2xl font-extrabold text-white/30">:</span>
+            <span className="text-2xl font-extrabold text-muted-foreground/40">:</span>
             <span
               className={cn(
-                "font-mono text-[28px] font-extrabold",
-                parsed[1] > parsed[0] ? "text-foreground" : "text-white/40"
+                "font-mono text-3xl font-extrabold",
+                parsed[1] > parsed[0] ? "text-foreground" : "text-muted-foreground"
               )}
             >
               {parsed[1]}
             </span>
           </div>
           {resultType && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <span
                 className={cn(
-                  "text-[10px] font-bold px-2.5 py-0.5 rounded-lg",
-                  resultType === "correct" && "bg-green-500/[0.12] text-green-500",
-                  resultType === "tendency" && "bg-amber-500/[0.12] text-amber-500",
-                  resultType === "wrong" && "bg-red-500/10 text-red-500"
+                  "text-xs font-bold px-3 py-1 rounded-lg",
+                  resultType === "correct" && "bg-green-500/15 text-green-600 dark:text-green-400",
+                  resultType === "tendency" && "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+                  resultType === "wrong" && "bg-red-500/15 text-red-600 dark:text-red-400"
                 )}
               >
-                {resultType === "correct" ? "✓ Exact" : resultType === "tendency" ? "~ Tendency" : "✗ Wrong"}
+                {resultType === "correct" ? "Exact" : resultType === "tendency" ? "~ Tendency" : "Wrong"}
               </span>
               {resultType !== "wrong" && (
                 <span
                   className={cn(
-                    "font-mono text-[11px] font-bold",
-                    resultType === "correct" ? "text-green-500" : "text-amber-500"
+                    "font-mono text-sm font-bold",
+                    resultType === "correct" ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"
                   )}
                 >
                   +{resultType === "correct" ? "4" : "2"} pts
@@ -170,44 +204,20 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
         </div>
       )}
 
-      {/* Meta row — centered */}
-      <div className="flex items-center justify-center flex-wrap gap-2">
-        {isFinished ? (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white/[0.06] text-white/50">
-            FT
+      {/* Odds row */}
+      {match.odds.home && !isFinished && (
+        <div className="flex items-center justify-center gap-2">
+          <span className="px-2 py-1 rounded-md bg-muted font-mono text-xs text-muted-foreground border border-border">
+            H {match.odds.home}
           </span>
-        ) : (
-          <span className="text-[11px] text-white/35">{match.date}</span>
-        )}
-        {!isFinished && hasBet && betState.saved && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-green-500/[0.12] text-green-500">
-            saved
+          <span className="px-2 py-1 rounded-md bg-muted font-mono text-xs text-muted-foreground border border-border">
+            D {match.odds.draw}
           </span>
-        )}
-        {!isFinished && hasBet && betState.modified && !betState.saved && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
-            unsaved
+          <span className="px-2 py-1 rounded-md bg-muted font-mono text-xs text-muted-foreground border border-border">
+            A {match.odds.away}
           </span>
-        )}
-        {needsBet && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
-            needs bet
-          </span>
-        )}
-        {match.odds.home && (
-          <>
-            <span className="px-1.5 py-0.5 rounded-md bg-white/[0.03] font-mono text-[10px] text-white/40 border border-white/[0.04]">
-              H {match.odds.home}
-            </span>
-            <span className="px-1.5 py-0.5 rounded-md bg-white/[0.03] font-mono text-[10px] text-white/40 border border-white/[0.04]">
-              D {match.odds.draw}
-            </span>
-            <span className="px-1.5 py-0.5 rounded-md bg-white/[0.03] font-mono text-[10px] text-white/40 border border-white/[0.04]">
-              A {match.odds.away}
-            </span>
-          </>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -225,57 +235,67 @@ export function MatchCard({ match }: MatchCardProps) {
       role="article"
       aria-label={`${match.home} vs ${match.away}, kickoff ${match.time}`}
       className={cn(
-        "rounded-[14px] p-3.5 flex flex-col gap-3 transition-all",
-        needsBet && "bg-white/[0.03] border-[1.5px] border-amber-500/35",
-        hasBet && !needsBet && "bg-white/[0.03] border-[1.5px] border-green-500/20",
-        !hasBet && !needsBet && "bg-white/[0.03] border-[1.5px] border-white/[0.05]"
+        "rounded-2xl p-4 flex flex-col gap-3 transition-all border-[1.5px]",
+        needsBet && "bg-amber-500/[0.04] dark:bg-amber-500/[0.06] border-amber-500/40",
+        hasBet && !needsBet && "bg-green-500/[0.04] dark:bg-green-500/[0.06] border-green-500/30",
+        !hasBet && !needsBet && "bg-card border-border"
       )}
     >
-      {/* Teams row — centered */}
+      {/* Date — prominent */}
       <div className="flex items-center justify-center gap-2">
-        <span className="text-sm font-medium truncate text-white/55">
-          {match.home}
+        <span className="text-sm font-semibold px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
+          {match.time}
         </span>
-        <span className="text-[9px] font-semibold text-white/[0.12] shrink-0">vs</span>
-        <span className="text-sm font-medium truncate text-white/55">
-          {match.away}
-        </span>
-      </div>
-
-      {/* Score display */}
-      <div className="flex items-center justify-center">
-        <span className="font-mono text-xl font-extrabold tracking-wider">
-          {hasBet ? match.bet : "— : —"}
-        </span>
-      </div>
-
-      {/* Meta row — centered */}
-      <div className="flex items-center justify-center flex-wrap gap-2">
-        <span className="text-[11px] text-white/35">{match.time}</span>
         {hasBet && !needsBet && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-green-500/[0.12] text-green-500">
+          <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-green-500/15 text-green-600 dark:text-green-400">
             saved
           </span>
         )}
         {needsBet && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
+          <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
             needs bet
           </span>
         )}
-        {match.odds.home && (
-          <>
-            <span className="px-1.5 py-0.5 rounded-md bg-white/[0.03] font-mono text-[10px] text-white/40 border border-white/[0.04]">
-              H {match.odds.home}
-            </span>
-            <span className="px-1.5 py-0.5 rounded-md bg-white/[0.03] font-mono text-[10px] text-white/40 border border-white/[0.04]">
-              D {match.odds.draw}
-            </span>
-            <span className="px-1.5 py-0.5 rounded-md bg-white/[0.03] font-mono text-[10px] text-white/40 border border-white/[0.04]">
-              A {match.odds.away}
-            </span>
-          </>
-        )}
       </div>
+
+      {/* Teams row */}
+      <div className="flex items-center justify-center gap-3">
+        <div className="flex items-center gap-2">
+          <CountryFlag country={match.home} size={20} className="shrink-0" />
+          <span className="text-base font-medium text-foreground/80">
+            {match.home}
+          </span>
+        </div>
+        <span className="text-xs font-bold text-muted-foreground/50 shrink-0">vs</span>
+        <div className="flex items-center gap-2">
+          <span className="text-base font-medium text-foreground/80">
+            {match.away}
+          </span>
+          <CountryFlag country={match.away} size={20} className="shrink-0" />
+        </div>
+      </div>
+
+      {/* Score display */}
+      <div className="flex items-center justify-center">
+        <span className="font-mono text-2xl font-extrabold tracking-wider">
+          {hasBet ? match.bet : "- : -"}
+        </span>
+      </div>
+
+      {/* Odds */}
+      {match.odds.home && (
+        <div className="flex items-center justify-center gap-2">
+          <span className="px-2 py-1 rounded-md bg-muted font-mono text-xs text-muted-foreground border border-border">
+            H {match.odds.home}
+          </span>
+          <span className="px-2 py-1 rounded-md bg-muted font-mono text-xs text-muted-foreground border border-border">
+            D {match.odds.draw}
+          </span>
+          <span className="px-2 py-1 rounded-md bg-muted font-mono text-xs text-muted-foreground border border-border">
+            A {match.odds.away}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

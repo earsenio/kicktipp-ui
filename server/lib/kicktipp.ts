@@ -308,7 +308,12 @@ async function getBets(session: UserSession, matchday?: number) {
   tbody.children("tr").each((_, tr) => {
     const cols = $(tr).children("td");
     if (cols.length < 5) return;
-    const date = $(cols[0]).text().trim();
+    const rawDate = $(cols[0]).text().trim();
+    const parsedDate = parseMatchDate(rawDate);
+    const date = parsedDate
+      ? parsedDate.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" })
+        + " · " + parsedDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+      : rawDate;
     const home = $(cols[1]).text().trim();
     const away = $(cols[2]).text().trim();
     const betTd = $(cols[3]);
@@ -349,7 +354,12 @@ async function getSchedule(session: UserSession, matchday?: number) {
   tbody.children("tr").each((_, tr) => {
     const cols = $(tr).children("td");
     if (cols.length < 5) return;
-    const date = $(cols[0]).text().trim();
+    const rawDate = $(cols[0]).text().trim();
+    const parsedDate = parseMatchDate(rawDate);
+    const date = parsedDate
+      ? parsedDate.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" })
+        + " · " + parsedDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+      : rawDate;
     const home = $(cols[2]).text().trim();
     const away = $(cols[3]).text().trim();
     const resultSpan = $(cols[4]).find("span.kicktipp-ergebnis");
@@ -384,8 +394,13 @@ async function getLeaderboard(session: UserSession, matchday?: number, bonus = f
         if (resultSpan.length) {
           result = `${resultSpan.find("span.kicktipp-heim").text().trim()}:${resultSpan.find("span.kicktipp-gast").text().trim()}`;
         }
+        const rawDate = $(cols[0]).text().trim();
+        const parsedDate = parseMatchDate(rawDate);
         matches!.push({
-          date: $(cols[0]).text().trim(),
+          date: parsedDate
+            ? parsedDate.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" })
+              + " · " + parsedDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+            : rawDate,
           home: $(cols[1]).text().trim(),
           away: $(cols[2]).text().trim(),
           result,

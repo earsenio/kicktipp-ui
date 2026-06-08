@@ -96,6 +96,7 @@ export function PredictView() {
   // Register pill click handler
   useEffect(() => {
     const handler = (md: number) => {
+      setActiveMatchday(md);
       const el = sectionRefs.current.get(md);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -117,7 +118,7 @@ export function PredictView() {
     };
     setOnPillClick(() => handler);
     return () => setOnPillClick(null);
-  }, [setOnPillClick, fetchMatchday]);
+  }, [setOnPillClick, setActiveMatchday, fetchMatchday]);
 
   // Infinite scroll: load the next matchday when the sentinel enters the viewport
   // (300px early, so content loads before the user reaches the bottom).
@@ -161,6 +162,20 @@ export function PredictView() {
       observer.observe(el);
     }
     return () => observer.disconnect();
+  }, [setActiveMatchday, matchdayData.size]);
+
+  // MD 1's section header sits above the IntersectionObserver's trigger zone,
+  // so scrolling back to the top never fires an intersection for it.
+  useEffect(() => {
+    const onScroll = () => {
+      if (window.scrollY < 150) {
+        const keys = Array.from(matchdayData.keys());
+        const first = keys.length ? Math.min(...keys) : null;
+        if (first) setActiveMatchday(first);
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
   }, [setActiveMatchday, matchdayData.size]);
 
   const updateBet = useCallback((md: number, index: number, field: "home" | "away", value: number | null) => {

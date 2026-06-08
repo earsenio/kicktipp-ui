@@ -23,15 +23,15 @@ export function DashboardContent({ matches }: DashboardContentProps) {
     <div className="space-y-5 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[22px] font-extrabold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight">Dashboard</h1>
           {matches?.title && (
-            <p className="text-xs text-white/40 mt-0.5">{matches.title}</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{matches.title}</p>
           )}
         </div>
         <button
           onClick={refresh}
           disabled={refreshing}
-          className="h-9 w-9 rounded-full bg-white/[0.04] flex items-center justify-center text-white/50 hover:text-white/80 transition-all disabled:opacity-30"
+          className="h-9 w-9 rounded-full bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-all disabled:opacity-30"
           title="Refresh"
         >
           <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
@@ -46,19 +46,19 @@ export function DashboardContent({ matches }: DashboardContentProps) {
           action={{ label: "View Schedule", href: "/schedule" }}
         />
       ) : needsBet === 0 ? (
-        <div className="rounded-[14px] bg-green-500/[0.08] border-[1.5px] border-green-500/20 p-4 text-sm text-green-500 font-semibold">
+        <div className="rounded-2xl bg-green-500/10 border-[1.5px] border-green-500/30 p-4 text-sm text-green-600 dark:text-green-400 font-semibold">
           All bets placed for today
         </div>
       ) : (
         <Link href="/matchday/1">
-          <div className="rounded-[14px] bg-amber-500/[0.08] border-[1.5px] border-amber-500/25 p-4 text-sm text-amber-500 font-semibold cursor-pointer hover:bg-amber-500/[0.12] transition-colors">
+          <div className="rounded-2xl bg-amber-500/10 border-[1.5px] border-amber-500/30 p-4 text-sm text-amber-600 dark:text-amber-400 font-semibold cursor-pointer hover:bg-amber-500/15 transition-colors">
             You have {needsBet} match{needsBet > 1 ? "es" : ""} to predict — Go to Predictions →
           </div>
         </Link>
       )}
 
       {total > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {matchList.map((match, i) => (
             <motion.div
               key={`${match.home}-${match.away}-${i}`}

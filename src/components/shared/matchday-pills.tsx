@@ -23,7 +23,7 @@ export function MatchdayPills({ current, max = 34, onChange }: MatchdayPillsProp
   return (
     <div
       ref={scrollRef}
-      className="flex gap-1.5 px-4 py-1.5 pb-2.5 overflow-x-auto scrollbar-hide"
+      className="flex gap-1.5 px-4 py-2 pb-3 overflow-x-auto scrollbar-hide border-t border-border"
     >
       {Array.from({ length: max }, (_, i) => i + 1).map((n) => {
         const isActive = n === current;
@@ -32,10 +32,10 @@ export function MatchdayPills({ current, max = 34, onChange }: MatchdayPillsProp
             key={n}
             onClick={() => onChange(n)}
             className={cn(
-              "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-all border",
+              "px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shrink-0 transition-all border",
               isActive
-                ? "bg-primary text-white border-transparent"
-                : "bg-white/[0.04] text-white/40 border-white/[0.06] hover:text-white/60"
+                ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                : "bg-muted text-muted-foreground border-border hover:text-foreground hover:border-foreground/30"
             )}
           >
             MD {n}

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Wifi, WifiOff, RefreshCw } from "lucide-react";
-import { cn, API_BASE } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 
 type Status = "connected" | "stale" | "error";
 
@@ -14,7 +15,7 @@ export function ConnectionStatus() {
 
   const check = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/kicktipp/status`);
+      const res = await apiFetch("/api/kicktipp/status");
       if (res.ok) {
         setStatus("connected");
         setLastCheck(Date.now());

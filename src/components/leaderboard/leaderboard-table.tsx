@@ -34,38 +34,38 @@ const podiumColors = {
 function PodiumColumn({ player, rank }: { player: LeaderboardRanking; rank: 1 | 2 | 3 }) {
   const colors = podiumColors[rank];
   const isFirst = rank === 1;
-  const barHeight = rank === 1 ? "h-14" : rank === 2 ? "h-10" : "h-7";
-  const avatarSize = isFirst ? "w-[50px] h-[50px] text-sm" : "w-[42px] h-[42px] text-xs";
-  const ptsSize = isFirst ? "text-[17px]" : "text-sm";
+  const barHeight = rank === 1 ? "h-16" : rank === 2 ? "h-12" : "h-8";
+  const avatarSize = isFirst ? "w-[52px] h-[52px] text-base" : "w-[44px] h-[44px] text-sm";
+  const ptsSize = isFirst ? "text-lg" : "text-base";
 
   return (
-    <div className="flex flex-col items-center gap-1">
-      {isFirst && <div className="text-lg leading-none">👑</div>}
+    <div className="flex flex-col items-center gap-1.5">
+      {isFirst && <div className="text-xl leading-none">👑</div>}
       <div
-        className={cn("rounded-full flex items-center justify-center font-extrabold", avatarSize)}
+        className={cn("rounded-full flex items-center justify-center font-extrabold border-2", avatarSize)}
         style={{
           background: colors.bg,
-          border: `2px solid ${colors.border}`,
+          borderColor: colors.border,
           color: colors.text,
         }}
       >
         {rank}
       </div>
-      <div className="text-[11px] font-semibold text-center max-w-[72px] truncate">
+      <div className="text-xs font-semibold text-center max-w-[80px] truncate text-foreground">
         {player.name}
       </div>
       <div className={cn("font-mono font-extrabold", ptsSize)} style={{ color: colors.text }}>
         {player.total}
       </div>
       <div
-        className={cn("w-[68px] rounded-t-[10px]", barHeight)}
+        className={cn("w-[72px] rounded-t-xl", barHeight)}
         style={{
           background:
             rank === 1
-              ? "rgba(234,179,8,0.08)"
+              ? "rgba(234,179,8,0.12)"
               : rank === 2
-                ? "rgba(161,161,170,0.06)"
-                : "rgba(180,83,9,0.06)",
+                ? "rgba(161,161,170,0.1)"
+                : "rgba(180,83,9,0.1)",
         }}
       />
     </div>
@@ -75,11 +75,9 @@ function PodiumColumn({ player, rank }: { player: LeaderboardRanking; rank: 1 | 
 function PlayerRow({
   player,
   index,
-  accent = "#3b82f6",
 }: {
   player: LeaderboardRanking;
   index: number;
-  accent?: string;
 }) {
   const rank = parseRank(player.position);
   const isYou = player.isCurrentPlayer;
@@ -90,43 +88,34 @@ function PlayerRow({
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.03, duration: 0.25 }}
       className={cn(
-        "flex items-center gap-2.5 py-2.5 px-4 border-b border-white/[0.03] transition-colors",
-        isYou && "border-l-[2.5px]"
+        "flex items-center gap-3 py-3 px-4 border-b border-border transition-colors",
+        isYou && "bg-primary/[0.06] border-l-[3px] border-l-primary"
       )}
-      style={
-        isYou
-          ? { background: `${accent}10`, borderLeftColor: accent }
-          : { borderLeftWidth: "2.5px", borderLeftColor: "transparent" }
-      }
     >
-      <span className="font-mono text-[13px] font-semibold text-white/40 w-[22px] text-center shrink-0">
+      <span className="font-mono text-sm font-semibold text-muted-foreground w-6 text-center shrink-0">
         {rank}
       </span>
-      <div className="w-[30px] h-[30px] rounded-full bg-white/[0.06] flex items-center justify-center text-[10px] font-bold text-white/35 shrink-0">
+      <div className="w-8 h-8 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
         {getInitials(player.name)}
       </div>
       <div className="flex-1 min-w-0 flex items-center">
         <span
           className={cn(
-            "text-[13px] truncate",
-            isYou ? "font-bold" : "font-medium"
+            "text-sm truncate",
+            isYou ? "font-bold text-primary" : "font-medium text-foreground"
           )}
-          style={isYou ? { color: accent } : undefined}
         >
           {player.name}
         </span>
         {isYou && (
-          <span
-            className="text-[9px] font-bold px-1.5 py-px rounded-[5px] ml-1.5 shrink-0"
-            style={{ background: `${accent}22`, color: accent }}
-          >
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md ml-2 shrink-0 bg-primary/15 text-primary">
             you
           </span>
         )}
       </div>
       <div className="text-right shrink-0">
         <div className="font-mono text-sm font-extrabold">{player.total}</div>
-        <div className="text-[9px] text-white/30 mt-px">
+        <div className="text-xs text-muted-foreground mt-0.5">
           {player.matchdayPoints} day · {player.bonus} bon
         </div>
       </div>
@@ -137,7 +126,7 @@ function PlayerRow({
 export function LeaderboardPodium({ rankings, overview }: Props) {
   if (rankings.length === 0) {
     return (
-      <p className="text-sm text-white/40 text-center py-8">
+      <p className="text-sm text-muted-foreground text-center py-8">
         No rankings available yet.
       </p>
     );
@@ -154,7 +143,7 @@ export function LeaderboardPodium({ rankings, overview }: Props) {
     <>
       {/* Podium */}
       {hasPodium && (
-        <div className="flex justify-center items-end gap-2.5 px-4 pt-2 pb-1">
+        <div className="flex justify-center items-end gap-3 px-4 pt-4 pb-3">
           {podiumOrder.map((p) => {
             const rank = parseRank(p.position) as 1 | 2 | 3;
             return <PodiumColumn key={p.name} player={p} rank={rank} />;
@@ -163,7 +152,7 @@ export function LeaderboardPodium({ rankings, overview }: Props) {
       )}
 
       {/* Divider */}
-      <div className="h-px bg-white/[0.05] mx-4" />
+      <div className="h-px bg-border mx-4" />
 
       {/* Player list */}
       <div>

@@ -5,7 +5,8 @@ import type { BonusQuestion, LeaderboardResponse } from "@/lib/types";
 import { LeaderboardPodium } from "@/components/leaderboard/leaderboard-table";
 import { toast } from "sonner";
 import { Loader2, ChevronDown, ChevronUp, Check } from "lucide-react";
-import { cn, API_BASE } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface SelectState {
@@ -22,16 +23,16 @@ interface Props {
 function StatBox({ value, label, color }: { value: string; label: string; color: string }) {
   return (
     <div
-      className="flex-1 py-2.5 px-2 rounded-xl text-center"
+      className="flex-1 py-3 px-3 rounded-xl text-center"
       style={{
-        background: `${color}08`,
-        border: `1px solid ${color}20`,
+        background: `${color}12`,
+        border: `1.5px solid ${color}30`,
       }}
     >
       <div className="font-mono text-xl font-extrabold" style={{ color }}>
         {value}
       </div>
-      <div className="text-[9px] text-white/35 font-medium mt-0.5">{label}</div>
+      <div className="text-xs text-muted-foreground font-medium mt-0.5">{label}</div>
     </div>
   );
 }
@@ -50,19 +51,14 @@ function BonusQuestionCard({
   const [openSelect, setOpenSelect] = useState<number | null>(null);
 
   return (
-    <div className="rounded-[14px] bg-white/[0.03] border border-white/[0.05] p-3.5 flex flex-col gap-2.5 shrink-0">
+    <div className="rounded-2xl bg-card border-[1.5px] border-border p-4 flex flex-col gap-3 shrink-0">
       {/* Question header */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2 flex-1 min-w-0">
-          <div
-            className={cn(
-              "w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-px",
-              "bg-white/[0.05] text-white/30"
-            )}
-          >
+        <div className="flex items-start gap-2.5 flex-1 min-w-0">
+          <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-px bg-primary/15 text-primary">
             {index + 1}
           </div>
-          <span className="text-[13px] font-semibold leading-snug">
+          <span className="text-sm font-semibold leading-snug text-foreground">
             {question.question}
           </span>
         </div>
@@ -80,20 +76,20 @@ function BonusQuestionCard({
             <button
               onClick={() => setOpenSelect(isOpen ? null : si)}
               className={cn(
-                "w-full px-3 py-2.5 rounded-[10px] bg-white/[0.03] border text-xs flex items-center justify-between transition-colors text-left",
+                "w-full px-3 py-2.5 rounded-xl bg-muted border text-sm flex items-center justify-between transition-colors text-left",
                 isOpen
                   ? "border-primary/50"
                   : currentVal !== "-1"
                     ? "border-primary/30"
-                    : "border-white/[0.06]",
-                currentVal !== "-1" ? "text-foreground" : "text-white/30"
+                    : "border-border",
+                currentVal !== "-1" ? "text-foreground" : "text-muted-foreground"
               )}
             >
               <span className="truncate">{displayText}</span>
               {isOpen ? (
-                <ChevronUp className="h-3.5 w-3.5 text-white/30 shrink-0" />
+                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
               ) : (
-                <ChevronDown className="h-3.5 w-3.5 text-white/30 shrink-0" />
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
               )}
             </button>
 
@@ -106,7 +102,7 @@ function BonusQuestionCard({
                   transition={{ duration: 0.15 }}
                   className="overflow-hidden"
                 >
-                  <div className="mt-1 rounded-[10px] border border-primary/20 bg-[#1a1a24] overflow-hidden">
+                  <div className="mt-1.5 rounded-xl border border-primary/20 bg-popover overflow-hidden shadow-lg">
                     {s.options
                       .filter((o) => o.text !== "-- Select --")
                       .map((opt) => {
@@ -119,14 +115,14 @@ function BonusQuestionCard({
                               setOpenSelect(null);
                             }}
                             className={cn(
-                              "w-full px-3 py-2.5 text-xs text-left flex items-center justify-between border-b border-white/[0.03] last:border-0 transition-colors",
+                              "w-full px-3 py-2.5 text-sm text-left flex items-center justify-between border-b border-border last:border-0 transition-colors",
                               isSelected
                                 ? "text-primary font-semibold bg-primary/10"
-                                : "text-white/70 hover:bg-white/[0.03]"
+                                : "text-foreground hover:bg-muted"
                             )}
                           >
                             <span>{opt.text}</span>
-                            {isSelected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
+                            {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
                           </button>
                         );
                       })}
@@ -195,7 +191,7 @@ export function BonusContent({ questions, bonusLeaderboard }: Props) {
 
     setSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/kicktipp`, {
+      const res = await apiFetch("/api/kicktipp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -217,20 +213,20 @@ export function BonusContent({ questions, bonusLeaderboard }: Props) {
   return (
     <div className="flex flex-col h-full -m-4 md:-m-6">
       {/* Header */}
-      <div className="px-4 pt-3 pb-1 flex items-start justify-between">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
         <div>
-          <h1 className="text-[22px] font-extrabold tracking-tight">Bonus</h1>
-          <p className="text-xs text-white/40 mt-0.5">
+          <h1 className="text-2xl font-extrabold tracking-tight">Bonus</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
             {questions.length} questions
           </p>
         </div>
-        <div className="flex rounded-[10px] overflow-hidden border border-white/[0.08]">
+        <div className="flex rounded-xl overflow-hidden border border-border">
           <button
             className={cn(
-              "px-3.5 py-1.5 text-[11px] font-semibold transition-all",
+              "px-4 py-2 text-xs font-bold transition-all",
               tab === "questions"
-                ? "bg-primary text-white"
-                : "text-white/40 hover:text-white/60"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
             )}
             onClick={() => setTab("questions")}
           >
@@ -238,10 +234,10 @@ export function BonusContent({ questions, bonusLeaderboard }: Props) {
           </button>
           <button
             className={cn(
-              "px-3.5 py-1.5 text-[11px] font-semibold transition-all",
+              "px-4 py-2 text-xs font-bold transition-all",
               tab === "ranking"
-                ? "bg-primary text-white"
-                : "text-white/40 hover:text-white/60"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
             )}
             onClick={() => setTab("ranking")}
           >
@@ -254,11 +250,11 @@ export function BonusContent({ questions, bonusLeaderboard }: Props) {
         <>
           {/* Stats row */}
           <div className="flex gap-2 px-4 py-2 pb-3">
-            <StatBox value={`${answered}/${questions.length}`} label="answered" color="#3b82f6" />
+            <StatBox value={`${answered}/${questions.length}`} label="answered" color="#2563eb" />
           </div>
 
           {/* Question cards */}
-          <div className="flex-1 overflow-y-auto px-4 pb-3 flex flex-col gap-2 scrollbar-hide">
+          <div className="flex-1 overflow-y-auto px-4 pb-3 flex flex-col gap-3 scrollbar-hide">
             {questions.map((q, qi) => (
               <motion.div
                 key={qi}
@@ -277,15 +273,15 @@ export function BonusContent({ questions, bonusLeaderboard }: Props) {
           </div>
 
           {/* Submit bar */}
-          <div className="px-4 py-2.5 shrink-0">
+          <div className="px-4 py-3 shrink-0 border-t border-border">
             <button
               onClick={handleSubmit}
               disabled={!hasChanges && !submitting}
               className={cn(
                 "w-full rounded-xl py-3.5 text-sm font-bold transition-all",
                 hasChanges || submitting
-                  ? "bg-primary text-white cursor-pointer"
-                  : "bg-white/[0.04] text-white/20 cursor-default"
+                  ? "bg-primary text-primary-foreground cursor-pointer shadow-lg shadow-primary/25"
+                  : "bg-muted text-muted-foreground cursor-default"
               )}
             >
               {submitting ? (
@@ -306,7 +302,7 @@ export function BonusContent({ questions, bonusLeaderboard }: Props) {
           {bonusLeaderboard ? (
             <LeaderboardPodium rankings={bonusLeaderboard.rankings} overview={null} />
           ) : (
-            <p className="text-sm text-white/40 text-center py-8">
+            <p className="text-sm text-muted-foreground text-center py-8">
               Bonus leaderboard not available yet.
             </p>
           )}

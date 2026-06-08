@@ -1,12 +1,23 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
-import { callTool } from "../server/lib/kicktipp";
+import { callTool, type UserSession } from "../server/lib/kicktipp";
+
+const testSession: UserSession = {
+  id: "test",
+  email: process.env.KICKTIPP_EMAIL || "",
+  password: process.env.KICKTIPP_PASSWORD || "",
+  cookies: "",
+  loggedIn: false,
+  community: "",
+  player: "",
+  lastActive: Date.now(),
+};
 
 async function testTool(name: string, args?: Record<string, unknown>) {
   console.log(`--- ${name} ${args ? JSON.stringify(args) : ""} ---`);
   try {
-    const result = await callTool(name, args);
+    const result = await callTool(name, args, testSession);
     console.log(JSON.stringify(result, null, 2));
     return result;
   } catch (err) {
