@@ -315,7 +315,7 @@ export function PredictView() {
               <div
                 ref={(el) => { if (el) sectionRefs.current.set(md, el); }}
                 data-matchday={md}
-                className="py-3 flex items-center gap-3"
+                className="scroll-mt-[120px] py-3 flex items-center gap-3"
               >
                 <span className="text-sm font-bold text-primary uppercase tracking-wider">
                   MD {md}

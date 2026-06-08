@@ -37,13 +37,13 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "hidden md:flex flex-col h-screen border-r border-border bg-sidebar sticky top-0 transition-all duration-200",
+        "hidden md:flex flex-col border-r border-border bg-sidebar fixed top-0 left-0 bottom-0 z-40 transition-all duration-200",
         collapsed ? "w-16" : "w-56"
       )}
     >
       <div className={cn("flex items-center gap-2 px-4 h-14 border-b border-border", collapsed && "justify-center px-2")}>
         {!collapsed && (
-          <span className="font-bold text-lg tracking-tight truncate">kicktipp</span>
+          <span className="font-bold text-lg tracking-tight truncate">TippKick</span>
         )}
         <Button
           variant="ghost"

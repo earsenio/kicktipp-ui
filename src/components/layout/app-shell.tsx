@@ -31,7 +31,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-dvh overflow-x-hidden">
         <Sidebar />
         <MatchdayProvider>
-          <div className="flex-1 flex flex-col min-h-dvh min-w-0 pt-14">
+          <div className="flex-1 flex flex-col min-h-dvh min-w-0 pt-14 md:ml-56">
             <Header />
             <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6">
               <PageTransition>{children}</PageTransition>
