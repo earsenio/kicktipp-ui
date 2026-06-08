@@ -15,6 +15,7 @@ export interface KicktippStatus {
 
 export interface TodayMatch {
   time: string;
+  kickoff: string;
   home: string;
   away: string;
   bet: string;
@@ -31,6 +32,7 @@ export interface TodayMatchesResponse {
 
 export interface BetMatch {
   date: string;
+  kickoff: string | null;
   home: string;
   away: string;
   bet: string;
@@ -119,6 +121,13 @@ export interface BonusQuestionSelect {
 export interface BonusQuestion {
   question: string;
   selects: BonusQuestionSelect[];
+}
+
+// ── get_bonus_questions (response wrapper) ──
+
+export interface BonusQuestionsResponse {
+  questions: BonusQuestion[];
+  deadline: string | null;
 }
 
 // ── set_community / set_player ──

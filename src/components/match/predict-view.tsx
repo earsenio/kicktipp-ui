@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, isDeadlinePassed } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { MatchCardBet } from "@/components/match/match-card";
 import { MatchCardSkeletonGrid } from "@/components/shared/loading-skeleton";
@@ -194,13 +194,15 @@ export function PredictView() {
       for (const [indexStr, bet] of Object.entries(mdBets)) {
         const modified = bet.home !== bet.originalHome || bet.away !== bet.originalAway;
         const complete = bet.home !== null && bet.away !== null;
-        if (modified && complete) {
+        const kickoff = matchdayData.get(md)?.matches[Number(indexStr)]?.kickoff;
+        const locked = kickoff ? isDeadlinePassed(kickoff) : false;
+        if (modified && complete && !locked) {
           result.push({ matchday: md, index: Number(indexStr), bet });
         }
       }
     }
     return result;
-  }, [bets]);
+  }, [bets, matchdayData]);
 
   const pendingCount = modifiedBets.length;
 

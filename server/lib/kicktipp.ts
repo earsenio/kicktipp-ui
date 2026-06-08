@@ -238,7 +238,7 @@ async function getTodayMatches(session: UserSession) {
 
   const now = new Date();
   const matches: Array<{
-    time: string; home: string; away: string; bet: string;
+    time: string; kickoff: string; home: string; away: string; bet: string;
     odds: { home: string; draw: string; away: string }; needsBet: boolean;
   }> = [];
 
@@ -269,9 +269,10 @@ async function getTodayMatches(session: UserSession) {
     }
 
     const time = matchDate.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const kickoff = matchDate.toISOString();
     const [rateHome, rateDraw, rateAway] = parseOdds($, cols[4]);
     matches.push({
-      time, home, away, bet,
+      time, kickoff, home, away, bet,
       odds: { home: rateHome, draw: rateDraw, away: rateAway },
       needsBet: !bet,
     });
@@ -301,7 +302,7 @@ async function getBets(session: UserSession, matchday?: number) {
   if (!tbody.length) return { title, matches: [], maxMatchday };
 
   const matches: Array<{
-    date: string; home: string; away: string; bet: string;
+    date: string; kickoff: string | null; home: string; away: string; bet: string;
     odds: { home: string; draw: string; away: string };
   }> = [];
 
@@ -331,8 +332,9 @@ async function getBets(session: UserSession, matchday?: number) {
         bet = "-";
       }
     }
+    const kickoff = parsedDate ? parsedDate.toISOString() : null;
     const [rateHome, rateDraw, rateAway] = parseOdds($, cols[4]);
-    matches.push({ date, home, away, bet, odds: { home: rateHome, draw: rateDraw, away: rateAway } });
+    matches.push({ date, kickoff, home, away, bet, odds: { home: rateHome, draw: rateDraw, away: rateAway } });
   });
 
   return { title, matches, maxMatchday };
@@ -609,10 +611,22 @@ async function getBonusQuestions(session: UserSession) {
   const community = ensureCommunity(session);
   const $ = await fetchPage(`${getUrlBase()}/${encodeURIComponent(community)}/${route("predict")}?bonus=true`, session);
   const content = $("#kicktipp-content");
+
+  let deadline: string | null = null;
+  const deadlineEl = content.find(".deadline, .hinweis, .abgabeschluss");
+  if (deadlineEl.length) {
+    const deadlineText = deadlineEl.text().trim();
+    const dateMatch = deadlineText.match(/\d{2}[.\/]\d{2}[.\/]\d{2}\s+\d{2}:\d{2}/);
+    if (dateMatch) {
+      const parsed = parseMatchDate(dateMatch[0]);
+      if (parsed) deadline = parsed.toISOString();
+    }
+  }
+
   const table = content.find("table#tippabgabeFragen");
-  if (!table.length) return [];
+  if (!table.length) return { questions: [], deadline };
   const tbody = table.find("tbody");
-  if (!tbody.length) return [];
+  if (!tbody.length) return { questions: [], deadline };
 
   const questions: Array<{
     question: string;
@@ -641,7 +655,7 @@ async function getBonusQuestions(session: UserSession) {
     questions.push({ question, selects });
   });
 
-  return questions;
+  return { questions, deadline };
 }
 
 function setCommunity(session: UserSession, name: string) {
@@ -741,7 +755,7 @@ async function placeBets(session: UserSession, bets: string[], matchday?: number
 async function placeBonusBets(session: UserSession, bets: string[], dryRun = false) {
   const community = ensureCommunity(session);
   const url = `${getUrlBase()}/${encodeURIComponent(community)}/${route("predict")}?bonus=true`;
-  const questions = await getBonusQuestions(session);
+  const { questions } = await getBonusQuestions(session);
   if (!questions.length) throw new Error("No editable bonus questions found.");
 
   const formFields: Record<string, string> = {};

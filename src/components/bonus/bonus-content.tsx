@@ -4,10 +4,11 @@ import { useState } from "react";
 import type { BonusQuestion, LeaderboardResponse } from "@/lib/types";
 import { LeaderboardPodium } from "@/components/leaderboard/leaderboard-table";
 import { toast } from "sonner";
-import { Loader2, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, Check, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
+import { useDeadline } from "@/hooks/use-deadline";
 
 interface SelectState {
   [questionIdx: number]: {
@@ -17,6 +18,7 @@ interface SelectState {
 
 interface Props {
   questions: BonusQuestion[];
+  deadline: string | null;
   bonusLeaderboard: LeaderboardResponse | null;
 }
 
@@ -42,11 +44,13 @@ function BonusQuestionCard({
   index,
   selections,
   onSelect,
+  disabled,
 }: {
   question: BonusQuestion;
   index: number;
   selections: Record<number, string>;
   onSelect: (selectIdx: number, value: string) => void;
+  disabled?: boolean;
 }) {
   const [openSelect, setOpenSelect] = useState<number | null>(null);
 
@@ -74,10 +78,12 @@ function BonusQuestionCard({
         return (
           <div key={si}>
             <button
-              onClick={() => setOpenSelect(isOpen ? null : si)}
+              onClick={() => !disabled && setOpenSelect(isOpen ? null : si)}
+              disabled={disabled}
               className={cn(
                 "w-full px-3 py-2.5 rounded-xl bg-muted border text-sm flex items-center justify-between transition-colors text-left",
-                isOpen
+                disabled && "opacity-50 cursor-not-allowed",
+                !disabled && isOpen
                   ? "border-primary/50"
                   : currentVal !== "-1"
                     ? "border-primary/30"
@@ -137,8 +143,9 @@ function BonusQuestionCard({
   );
 }
 
-export function BonusContent({ questions, bonusLeaderboard }: Props) {
+export function BonusContent({ questions, deadline, bonusLeaderboard }: Props) {
   const [tab, setTab] = useState<"questions" | "ranking">("questions");
+  const { isLocked: deadlinePassed, isApproaching: deadlineApproaching, minutesLeft } = useDeadline(deadline);
   const [origSelections] = useState<SelectState>(() => {
     const init: SelectState = {};
     questions.forEach((q, qi) => {
@@ -248,6 +255,21 @@ export function BonusContent({ questions, bonusLeaderboard }: Props) {
 
       {tab === "questions" ? (
         <>
+          {/* Deadline banner */}
+          {deadlinePassed && (
+            <div className="mx-4 mt-1 mb-1 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 flex items-center gap-2">
+              <Lock className="h-4 w-4 text-red-500 shrink-0" />
+              <span className="text-sm font-semibold text-red-500">Deadline has passed</span>
+            </div>
+          )}
+          {!deadlinePassed && deadlineApproaching && (
+            <div className="mx-4 mt-1 mb-1 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25">
+              <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">
+                Deadline in {minutesLeft} minute{minutesLeft !== 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+
           {/* Stats row */}
           <div className="flex gap-2 px-4 py-2 pb-3">
             <StatBox value={`${answered}/${questions.length}`} label="answered" color="#2563eb" />
@@ -267,6 +289,7 @@ export function BonusContent({ questions, bonusLeaderboard }: Props) {
                   index={qi}
                   selections={selections[qi] || {}}
                   onSelect={(si, val) => handleChange(qi, si, val)}
+                  disabled={deadlinePassed}
                 />
               </motion.div>
             ))}
@@ -276,15 +299,22 @@ export function BonusContent({ questions, bonusLeaderboard }: Props) {
           <div className="px-4 py-3 shrink-0 border-t border-border">
             <button
               onClick={handleSubmit}
-              disabled={!hasChanges && !submitting}
+              disabled={deadlinePassed || (!hasChanges && !submitting)}
               className={cn(
                 "w-full rounded-xl py-3.5 text-sm font-bold transition-all",
-                hasChanges || submitting
-                  ? "bg-primary text-primary-foreground cursor-pointer shadow-lg shadow-primary/25"
-                  : "bg-muted text-muted-foreground cursor-default"
+                deadlinePassed
+                  ? "bg-muted text-muted-foreground cursor-not-allowed"
+                  : hasChanges || submitting
+                    ? "bg-primary text-primary-foreground cursor-pointer shadow-lg shadow-primary/25"
+                    : "bg-muted text-muted-foreground cursor-default"
               )}
             >
-              {submitting ? (
+              {deadlinePassed ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Deadline Passed
+                </span>
+              ) : submitting ? (
                 <span className="flex items-center justify-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   Submitting...

@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import type { TodayMatch, BetMatch } from "@/lib/types";
 import { ScoreInput } from "@/components/match/score-input";
 import { CountryFlag } from "@/components/shared/country-flag";
+import { MatchCountdown } from "@/components/match/match-countdown";
+import { useDeadline } from "@/hooks/use-deadline";
 
 type ResultType = "correct" | "tendency" | "wrong";
 
@@ -48,16 +50,19 @@ interface MatchCardBetProps {
 
 export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardBetProps) {
   const isFinished = !!match.result && match.result !== "-:-";
+  const { isLocked: deadlineLocked, isApproaching } = useDeadline(match.kickoff);
+  const isLocked = !isFinished && deadlineLocked;
   const hasBet = betState.home !== null && betState.away !== null;
   const resultType = isFinished && hasBet ? getResultType(betState.home, betState.away, match.result) : null;
-  const homeWins = hasBet && !isFinished && betState.home! > betState.away!;
-  const awayWins = hasBet && !isFinished && betState.away! > betState.home!;
-  const needsBet = !hasBet && !isFinished;
+  const homeWins = hasBet && !isFinished && !isLocked && betState.home! > betState.away!;
+  const awayWins = hasBet && !isFinished && !isLocked && betState.away! > betState.home!;
+  const needsBet = !hasBet && !isFinished && !isLocked;
 
   let cardState = "default";
   if (isFinished && resultType === "correct") cardState = "finished_correct";
   else if (isFinished && resultType === "tendency") cardState = "finished_tendency";
   else if (isFinished) cardState = "finished_wrong";
+  else if (isLocked) cardState = "locked";
   else if (needsBet) cardState = "needs_bet";
   else if (hasBet && betState.saved) cardState = "saved";
 
@@ -72,7 +77,9 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
         cardState === "finished_correct" && "bg-green-500/[0.06] dark:bg-green-500/[0.08] border-green-500/40",
         cardState === "finished_tendency" && "bg-amber-500/[0.04] dark:bg-amber-500/[0.06] border-amber-500/30",
         cardState === "finished_wrong" && "bg-red-500/[0.04] dark:bg-red-500/[0.06] border-red-500/25",
-        cardState === "default" && "bg-card border-border"
+        cardState === "locked" && "bg-muted/50 border-muted-foreground/20 opacity-70",
+        cardState === "default" && "bg-card border-border",
+        isApproaching && "animate-pulse-border"
       )}
     >
       {/* Date — prominent */}
@@ -81,16 +88,26 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
           "text-sm font-semibold px-2.5 py-0.5 rounded-lg",
           isFinished
             ? "bg-muted text-muted-foreground"
-            : "bg-primary/10 text-primary dark:bg-primary/20"
+            : isLocked
+              ? "bg-muted text-muted-foreground"
+              : "bg-primary/10 text-primary dark:bg-primary/20"
         )}>
           {isFinished ? "FT" : match.date}
         </span>
-        {!isFinished && hasBet && betState.saved && (
+        {match.kickoff && !isFinished && (
+          <MatchCountdown time={match.kickoff} />
+        )}
+        {isLocked && (
+          <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-red-500/15 text-red-500">
+            locked
+          </span>
+        )}
+        {!isLocked && !isFinished && hasBet && betState.saved && (
           <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-green-500/15 text-green-600 dark:text-green-400">
             saved
           </span>
         )}
-        {!isFinished && hasBet && betState.modified && !betState.saved && (
+        {!isLocked && !isFinished && hasBet && betState.modified && !betState.saved && (
           <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
             unsaved
           </span>
@@ -136,7 +153,7 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
           onChange={(v) => onBetChange("home", v)}
           modified={betState.modified}
           saved={betState.saved}
-          isFinished={isFinished}
+          isFinished={isFinished || isLocked}
           tabIndex={index * 2 + 1}
           aria-label={`${match.home} score`}
         />
@@ -146,7 +163,7 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
           onChange={(v) => onBetChange("away", v)}
           modified={betState.modified}
           saved={betState.saved}
-          isFinished={isFinished}
+          isFinished={isFinished || isLocked}
           tabIndex={index * 2 + 2}
           aria-label={`${match.away} score`}
         />
@@ -228,7 +245,8 @@ interface MatchCardProps {
 
 export function MatchCard({ match }: MatchCardProps) {
   const hasBet = match.bet && match.bet !== "-" && match.bet !== "";
-  const needsBet = match.needsBet;
+  const { isLocked, isApproaching } = useDeadline(match.kickoff);
+  const needsBet = match.needsBet && !isLocked;
 
   return (
     <div
@@ -237,16 +255,29 @@ export function MatchCard({ match }: MatchCardProps) {
       className={cn(
         "rounded-2xl p-4 flex flex-col gap-3 transition-all border-[1.5px]",
         needsBet && "bg-amber-500/[0.04] dark:bg-amber-500/[0.06] border-amber-500/40",
-        hasBet && !needsBet && "bg-green-500/[0.04] dark:bg-green-500/[0.06] border-green-500/30",
-        !hasBet && !needsBet && "bg-card border-border"
+        hasBet && !needsBet && !isLocked && "bg-green-500/[0.04] dark:bg-green-500/[0.06] border-green-500/30",
+        isLocked && "bg-muted/50 border-muted-foreground/20 opacity-70",
+        !hasBet && !needsBet && !isLocked && "bg-card border-border",
+        isApproaching && "animate-pulse-border"
       )}
     >
       {/* Date — prominent */}
       <div className="flex items-center justify-center gap-2">
-        <span className="text-sm font-semibold px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
+        <span className={cn(
+          "text-sm font-semibold px-2.5 py-0.5 rounded-lg",
+          isLocked
+            ? "bg-muted text-muted-foreground"
+            : "bg-primary/10 text-primary dark:bg-primary/20"
+        )}>
           {match.time}
         </span>
-        {hasBet && !needsBet && (
+        <MatchCountdown time={match.kickoff} />
+        {isLocked && (
+          <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-red-500/15 text-red-500">
+            locked
+          </span>
+        )}
+        {!isLocked && hasBet && !needsBet && (
           <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-green-500/15 text-green-600 dark:text-green-400">
             saved
           </span>

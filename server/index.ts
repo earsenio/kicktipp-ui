@@ -165,6 +165,20 @@ app.post("/api/kicktipp", async (c) => {
     }
   }
 
+  // Best-effort deadline check for write operations
+  if (tool === "place_bets") {
+    try {
+      const matchday = (args as Record<string, unknown>)?.matchday as number | undefined;
+      const betsData = await callTool("get_bets", { matchday }, session) as { matches: Array<{ kickoff?: string | null }> };
+      const allLocked = betsData.matches.every((m) => m.kickoff && new Date(m.kickoff).getTime() <= Date.now());
+      if (allLocked && betsData.matches.length > 0) {
+        return c.json({ error: "All matches have kicked off — predictions are locked", code: "MCP_ERROR" }, 400);
+      }
+    } catch {
+      // Check failed — let Kicktipp's server enforce the deadline
+    }
+  }
+
   const start = Date.now();
   try {
     const data = await callTool(tool, args, session);
