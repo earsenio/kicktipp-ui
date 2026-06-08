@@ -13,7 +13,6 @@
     "dev:all": "npm run dev & npm run dev:api",
     "build": "next build",
     "start": "tsx server/index.ts",
-    "postinstall": "npx playwright install chromium --with-deps",
     "lint": "eslint"
   },
   "dependencies": {

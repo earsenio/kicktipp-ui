@@ -5,8 +5,7 @@ Thanks for your interest in contributing! Here's how to get started.
 ## Local Development
 
 1. Follow the [Quick Start](README.md#quick-start) to set up the project
-2. Install the [kicktipp-agent](https://github.com/christianheidorn/kicktipp-agent) MCP server
-3. Run `npm run dev:all` to start both the Next.js dev server and the Hono API server
+2. Run `npm run dev:all` to start both the Next.js dev server and the Hono API server
 
 The frontend runs on `:3000` and the API on `:3001` in development. In production, Hono serves both from a single port.
 

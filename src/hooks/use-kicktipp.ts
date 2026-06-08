@@ -1,4 +1,4 @@
-// SWR-style data-fetching hook for MCP tools. Handles loading, errors,
+// SWR-style data-fetching hook for scraping tools. Handles loading, errors,
 // abort on unmount, optional polling, and auto-redirects to /login on 401.
 "use client";
 

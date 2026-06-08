@@ -1,5 +1,5 @@
 // TypeScript interfaces for all API response shapes, mirroring the data
-// returned by each kicktipp-agent MCP tool.
+// returned by each scraping tool in server/lib/kicktipp.ts.
 
 // ── get_status ──
 

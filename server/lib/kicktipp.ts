@@ -1,6 +1,6 @@
 // Scraping engine: logs into kicktipp.com with per-user cookie sessions,
-// fetches pages, and parses HTML into structured data for the API layer.
-// Each MCP tool (get_bets, get_leaderboard, etc.) maps to a function here.
+// fetches pages, and parses HTML with cheerio into structured data.
+// Each tool (get_bets, get_leaderboard, etc.) maps to a function here.
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 

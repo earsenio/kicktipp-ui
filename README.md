@@ -2,7 +2,7 @@
 
 Open-source web UI for [kicktipp.com](https://www.kicktipp.com) — the German sports prediction game.
 
-Kicktipp has no public API. Tippkick talks to it through the [kicktipp-agent](https://github.com/christianheidorn/kicktipp-agent) MCP server, which scrapes kicktipp.com using headless Chromium. The goal: you never need to open kicktipp.com again.
+Kicktipp has no public API. Tippkick scrapes kicktipp.com directly using HTTP requests and [cheerio](https://cheerio.js.org/) HTML parsing — no headless browser needed. The goal: you never need to open kicktipp.com again.
 
 ## Features
 
@@ -19,21 +19,15 @@ Kicktipp has no public API. Tippkick talks to it through the [kicktipp-agent](ht
 ## Architecture
 
 ```
-Browser  -->  Hono API server  -->  kicktipp-agent (MCP)  -->  kicktipp.com
-  (React)      (auth, cache)        (headless Chromium)        (HTML scraping)
+Browser  -->  Hono API server  -->  kicktipp.com
+  (React)      (auth, cache)        (HTTP + cheerio)
 ```
 
-The Next.js frontend is statically exported and served by the same Hono process that runs the API. No database — sessions and cache live in memory.
+The Next.js frontend is statically exported and served by the same Hono process that runs the API. Scraping is done with plain HTTP requests and cookie-based sessions — no headless browser or external tools needed. No database — sessions and cache live in memory.
 
 ## Prerequisites
 
 - **Node.js 20+**
-- **kicktipp-agent MCP server** — [install instructions](https://github.com/christianheidorn/kicktipp-agent):
-  ```bash
-  git clone https://github.com/christianheidorn/kicktipp-agent.git
-  cd kicktipp-agent
-  npm install && npx playwright install chromium && npm run build && npm link
-  ```
 
 ## Quick Start
 
@@ -88,7 +82,7 @@ The included `railway.toml` handles Railway deployment. Set `KICKTIPP_URL` in th
 | Animations | Framer Motion |
 | Charts | Recharts |
 | API Server | Hono |
-| MCP Client | Per-session headless Chromium via kicktipp-agent |
+| Scraping | cheerio (HTML parsing) + cookie-based sessions |
 
 ## Contributing
 

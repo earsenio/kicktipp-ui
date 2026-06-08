@@ -6,7 +6,7 @@ This file is read by Claude Code on every session. Follow these instructions at 
 
 ## What This Project Is
 
-A modern, open-source web UI for [kicktipp.com](https://www.kicktipp.com) — the German sports prediction game. Kicktipp has **no public API**. All data flows through the `kicktipp-agent` MCP server, which scrapes kicktipp.com using headless Chromium.
+A modern, open-source web UI for [kicktipp.com](https://www.kicktipp.com) — the German sports prediction game. Kicktipp has **no public API**. Tippkick scrapes kicktipp.com directly using HTTP requests and cheerio HTML parsing.
 
 The goal: users never need to open kicktipp.com again.
 
@@ -21,7 +21,7 @@ The goal: users never need to open kicktipp.com again.
 | Styling | Tailwind CSS 4 + shadcn/ui |
 | Animations | Framer Motion |
 | Charts | Recharts |
-| MCP Client | `@modelcontextprotocol/sdk` |
+| Scraping | cheerio + cookie-based HTTP sessions |
 | Cache | In-memory TTL cache (`src/lib/cache.ts`) |
 | Deployment | Railway (Nixpacks, Node 20) |
 
@@ -41,14 +41,14 @@ User credentials are provided at login time, stored in-memory only (never on dis
 
 ---
 
-## MCP Server — 15 Available Tools
+## Scraping Tools — 15 Available
 
-The kicktipp-agent ([christianheidorn/kicktipp-agent](https://github.com/christianheidorn/kicktipp-agent)) exposes the `kicktipp-mcp` binary (stdio transport). For local development: clone the repo, `npm install && npx playwright install chromium && npm run build && npm link`. It is invoked as a subprocess by `src/lib/mcp-client.ts`.
+Implemented in `server/lib/kicktipp.ts`. Each tool does an HTTP fetch to kicktipp.com, parses the HTML with cheerio, and returns structured data.
 
 | Tool | Description | Expensive? |
 |------|-------------|-----------|
 | `get_status` | Check credentials + community config | No |
-| `get_today_matches` | Today's matches + bet status | Yes (Chromium) |
+| `get_today_matches` | Today's matches + bet status | Yes |
 | `get_bets` | Matches + current bets for a matchday | Yes |
 | `get_schedule` | Full season schedule with results | Yes |
 | `get_leaderboard` | Player rankings for a matchday | Yes |
@@ -63,7 +63,7 @@ The kicktipp-agent ([christianheidorn/kicktipp-agent](https://github.com/christi
 | `place_bets` | Submit match predictions | Yes (mutating) |
 | `place_bonus_bets` | Submit bonus question answers | Yes (mutating) |
 
-"Expensive" = 1–3 seconds per call (headless browser). **Always cache reads. Never cache writes.**
+"Expensive" = 1–3 seconds per call (HTTP fetch + HTML parse). **Always cache reads. Never cache writes.**
 
 ---
 
@@ -109,9 +109,9 @@ src/
 │   ├── setup/page.tsx             # First-run onboarding
 │   └── api/                       # API routes served by Hono (server/index.ts)
 ├── lib/
-│   ├── mcp-client.ts              # MCP subprocess singleton
+│   ├── api.ts                     # Authenticated fetch wrapper (Bearer token + cookie)
 │   ├── cache.ts                   # In-memory TTL cache
-│   ├── types.ts                   # All Kicktipp data types (auto-inferred from MCP)
+│   ├── types.ts                   # All Kicktipp data types
 │   └── utils.ts
 ├── components/
 │   ├── ui/                        # shadcn/ui primitives (DO NOT edit)
@@ -174,7 +174,7 @@ The `skipCache: true` flag is used after write operations (place_bets, place_bon
 
 Batch prediction is the most important interaction in the app. Always design bet placement to support submitting multiple predictions at once.
 
-The `place_bets` MCP tool accepts an array of strings (each `"Home vs Away=H:G"`):
+The `place_bets` tool accepts an array of strings (each `"Home vs Away=H:G"`):
 ```json
 { "bets": ["FC Bayern vs Dortmund=2:1", "RB Leipzig vs Leverkusen=0:0"], "matchday": 15, "dry_run": false }
 ```
@@ -192,8 +192,8 @@ Score inputs must support:
 ## Coding Conventions
 
 - **Server Components by default**. Use `'use client'` only when needed (interactivity, hooks).
-- **No `any` types**. Infer types from MCP responses or define them in `src/lib/types.ts`.
-- **Error boundaries** on every page. MCP calls can fail — always show a recovery UI.
+- **No `any` types**. Infer types from API responses or define them in `src/lib/types.ts`.
+- **Error boundaries** on every page. Scraping calls can fail — always show a recovery UI.
 - **Loading states** with shadcn/ui Skeleton on every data fetch.
 - **Accessible**: ARIA labels on score inputs, keyboard nav works end-to-end.
 - **Mobile-first**: bottom tab nav on < 768px, sidebar on ≥ 768px.
@@ -221,18 +221,14 @@ Score fonts: use a **monospace** font for all score displays and inputs (e.g., `
 - All configuration via environment variables
 - `README.md` must include: purpose, install steps, env vars, Railway deploy button
 - Every PR must include a brief description in CONTRIBUTING.md format
-- Do not commit `.env.local`, session files, or Chromium cache
+- Do not commit `.env.local` or session files
 
 ---
 
 ## Railway Deployment Notes
 
 - Nixpacks auto-detects Next.js — no Dockerfile needed
-- Set `KICKTIPP_EMAIL` and `KICKTIPP_PASSWORD` in Railway environment variables
-- The kicktipp-agent subprocess requires Playwright + Chromium. Add to `package.json` scripts:
-  ```json
-  "postinstall": "npx playwright install chromium --with-deps"
-  ```
+- Set `KICKTIPP_URL` in Railway environment variables (user credentials are provided at login time)
 - Railway `railway.toml`:
   ```toml
   [build]
@@ -240,13 +236,12 @@ Score fonts: use a **monospace** font for all score displays and inputs (e.g., `
   
   [deploy]
   startCommand = "npm start"
-  healthcheckPath = "/api/kicktipp/status"
+  healthcheckPath = "/api/health"
   healthcheckTimeout = 30
   restartPolicyType = "ON_FAILURE"
   restartPolicyMaxRetries = 3
   ```
-- MCP subprocess is kept alive for the lifetime of the Node.js process
-- Session files are stored in Railway's ephemeral filesystem — on restart, the MCP server will re-authenticate automatically using env vars
+- Sessions live in memory — on restart, users re-login
 
 ---
 

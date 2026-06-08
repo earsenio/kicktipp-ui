@@ -1,4 +1,4 @@
-// Hono API server: auth routes, tool proxy to kicktipp-agent, and static file serving.
+// Hono API server: auth routes, scraping tool proxy, and static file serving.
 // In production, this single process serves both the API and the Next.js static export.
 import { config } from "dotenv";
 config({ path: ".env.local" });

@@ -1,5 +1,5 @@
-// TTL-based in-memory cache for MCP tool results.
-// Expensive tools (headless browser scrapes) are cached to avoid redundant calls.
+// TTL-based in-memory cache for scraping tool results.
+// Expensive tools (HTTP fetch + HTML parse) are cached to avoid redundant calls.
 // Writes (place_bets, place_bonus_bets) are never cached.
 export const TTL = {
   TODAY_MATCHES: 60,
