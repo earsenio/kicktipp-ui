@@ -193,6 +193,12 @@ app.post("/api/kicktipp", async (c) => {
 
 app.use("/*", serveStatic({ root: "./out" }));
 
+// Clean URLs: /login → /login.html, /leaderboard → /leaderboard.html, etc.
+app.use("/*", serveStatic({
+  root: "./out",
+  rewriteRequestPath: (path) => `${path}.html`,
+}));
+
 app.get("*", serveStatic({ root: "./out", path: "/index.html" }));
 
 process.on("unhandledRejection", (err) => {

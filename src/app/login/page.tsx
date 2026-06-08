@@ -39,7 +39,7 @@ export default function LoginPage() {
     <div className="min-h-dvh flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-extrabold tracking-tight">kicktipp</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight">TippKick</h1>
           <p className="text-sm text-muted-foreground">
             Sign in with your kicktipp.com account
           </p>
