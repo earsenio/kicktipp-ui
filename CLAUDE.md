@@ -1,4 +1,4 @@
-# CLAUDE.md — KickTipp UI
+# CLAUDE.md — Tippkick
 
 This file is read by Claude Code on every session. Follow these instructions at all times.
 
@@ -25,19 +25,19 @@ The goal: users never need to open kicktipp.com again.
 | Cache | In-memory TTL cache (`src/lib/cache.ts`) |
 | Deployment | Railway (Nixpacks, Node 20) |
 
-**No Supabase. No external database. No auth system.** This is a single-user personal dashboard. Credentials come from environment variables only.
+**No Supabase. No external database.** Multi-user auth via httpOnly session cookies backed by an in-memory `Map<string, UserSession>`. Each user logs in with their own kicktipp.com credentials. Sessions are lost on server restart (users re-login).
 
 ---
 
 ## Environment Variables
 
 ```
-KICKTIPP_EMAIL=your@email.com
-KICKTIPP_PASSWORD=yourpassword
 KICKTIPP_URL=https://www.kicktipp.fr   # or .de / .com — determines locale-specific URL paths
 ```
 
 Set in `.env.local` for development, in Railway dashboard for production. `KICKTIPP_URL` defaults to `https://www.kicktipp.com` if not set. Use the domain matching your community's locale (`.fr` for French, `.de` for German, `.com` for English).
+
+User credentials are provided at login time, stored in-memory only (never on disk), and cleared on server restart.
 
 ---
 
@@ -105,10 +105,9 @@ src/
 │   ├── bonus/page.tsx
 │   ├── players/page.tsx
 │   ├── rules/page.tsx
+│   ├── login/page.tsx              # Login form
 │   ├── setup/page.tsx             # First-run onboarding
-│   └── api/
-│       ├── kicktipp/route.ts      # Generic MCP proxy: POST { tool, args }
-│       └── kicktipp/status/route.ts
+│   └── api/                       # API routes served by Hono (server/index.ts)
 ├── lib/
 │   ├── mcp-client.ts              # MCP subprocess singleton
 │   ├── cache.ts                   # In-memory TTL cache
@@ -120,6 +119,8 @@ src/
 │   │   ├── sidebar.tsx
 │   │   ├── header.tsx
 │   │   └── mobile-nav.tsx
+│   ├── auth/
+│   │   └── auth-provider.tsx      # Auth context + 401 redirect
 │   ├── match/
 │   │   ├── match-card.tsx
 │   │   ├── score-input.tsx
@@ -142,7 +143,17 @@ src/
 
 ## API Route Contract
 
-All Kicktipp data flows through a single endpoint:
+### Authentication
+
+```
+POST /api/auth/login    — { email, password } → Set-Cookie: kt-session
+POST /api/auth/logout   — clears session
+GET  /api/auth/me       — { email, community } or 401
+```
+
+All `/api/kicktipp/*` endpoints require a valid `kt-session` httpOnly cookie. Unauthenticated requests return 401.
+
+### Data
 
 ```
 POST /api/kicktipp
@@ -152,10 +163,10 @@ Response: { data: unknown, cached: boolean, cachedAt?: number }
 
 Error response:
 ```
-{ error: string, code: "MCP_ERROR" | "TOOL_NOT_FOUND" | "CREDENTIALS_MISSING" }
+{ error: string, code: "MCP_ERROR" | "TOOL_NOT_FOUND" | "NOT_AUTHENTICATED" }
 ```
 
-The `skipCache: true` flag is used after write operations (place_bets, place_bonus_bets).
+The `skipCache: true` flag is used after write operations (place_bets, place_bonus_bets). Cache keys are per-user for user-specific tools (bets, today_matches, bonus_questions, status) and shared for global tools (schedule, leaderboard, overview, rules, players, table).
 
 ---
 
@@ -242,7 +253,7 @@ Score fonts: use a **monospace** font for all score displays and inputs (e.g., `
 ## What NOT to Build (v1)
 
 - No community creation or admin features
-- No user registration (single-user)
+- No user registration — users must have existing kicktipp.com accounts
 - No Kicktipp messaging/chat integration
 - No payment or subscription management
 - No AI-powered prediction suggestions (v2)

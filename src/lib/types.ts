@@ -1,3 +1,6 @@
+// TypeScript interfaces for all API response shapes, mirroring the data
+// returned by each kicktipp-agent MCP tool.
+
 // ── get_status ──
 
 export interface KicktippStatus {

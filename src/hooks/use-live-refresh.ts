@@ -1,7 +1,9 @@
+// Polls for score updates during live matches. Detects whether any match
+// is currently in progress and starts a 60-second refresh interval.
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { API_BASE } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 
 const POLL_INTERVAL = 60_000;
 
@@ -19,7 +21,7 @@ export function useLiveRefresh(tools: string[]): {
     setRefreshing(true);
     try {
       for (const tool of tools) {
-        await fetch(`${API_BASE}/api/kicktipp`, {
+        await apiFetch("/api/kicktipp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tool, skipCache: true }),
@@ -36,7 +38,7 @@ export function useLiveRefresh(tools: string[]): {
 
     async function checkLive() {
       try {
-        const res = await fetch(`${API_BASE}/api/kicktipp`, {
+        const res = await apiFetch("/api/kicktipp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tool: "get_today_matches" }),

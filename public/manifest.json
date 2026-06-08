@@ -1,7 +1,7 @@
 {
-  "name": "KickTipp UI",
-  "short_name": "KickTipp",
-  "description": "Modern interface for your Kicktipp prediction game",
+  "name": "Tippkick",
+  "short_name": "Tippkick",
+  "description": "Open-source web UI for kicktipp.com — sports prediction game",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

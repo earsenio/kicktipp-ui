@@ -1,12 +1,19 @@
 {
-  "name": "kicktipp-ui",
+  "name": "tippkick",
   "version": "0.1.0",
-  "private": true,
+  "description": "Open-source web UI for kicktipp.com — the German sports prediction game",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/earsenio/tippkick"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:api": "tsx server/index.ts",
+    "dev:all": "npm run dev & npm run dev:api",
     "build": "next build",
     "start": "tsx server/index.ts",
+    "postinstall": "npx playwright install chromium --with-deps",
     "lint": "eslint"
   },
   "dependencies": {

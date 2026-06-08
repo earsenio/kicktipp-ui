@@ -1,7 +1,25 @@
+// Scraping engine: logs into kicktipp.com with per-user cookie sessions,
+// fetches pages, and parses HTML into structured data for the API layer.
+// Each MCP tool (get_bets, get_leaderboard, etc.) maps to a function here.
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 
+// ── Types ────────────────────────────────────────────────────────
+
+export interface UserSession {
+  id: string;
+  email: string;
+  password: string;
+  cookies: string;
+  loggedIn: boolean;
+  community: string;
+  player: string;
+  lastActive: number;
+}
+
 type Locale = "en" | "fr" | "de";
+
+// ── Routing ──────────────────────────────────────────────────────
 
 const ROUTES: Record<Locale, Record<string, string>> = {
   en: { predict: "predict", schedule: "schedule", leaderboard: "leaderboard", overview: "overview", tables: "tables", rules: "rules" },
@@ -38,10 +56,7 @@ function leaderboardUrl(community: string, matchday?: number, bonus = false): st
   return params.length ? `${base}?${params.join("&")}` : base;
 }
 
-// ── Session management ────────────────────────────────────────────
-
-let cookies = "";
-let loggedIn = false;
+// ── Cookie management ────────────────────────────────────────────
 
 function mergeCookies(existing: string, setCookies: string[]): string {
   const jar = new Map<string, string>();
@@ -57,71 +72,68 @@ function mergeCookies(existing: string, setCookies: string[]): string {
   return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; ");
 }
 
-async function login(): Promise<void> {
-  const email = process.env.KICKTIPP_EMAIL;
-  const password = process.env.KICKTIPP_PASSWORD;
-  if (!email || !password) throw new Error("KICKTIPP_EMAIL and KICKTIPP_PASSWORD must be set");
+// ── Session-aware login/fetch ────────────────────────────────────
 
-  // Step 1: GET the login page (follows locale redirects) to get session cookie + form action
+export async function loginSession(session: UserSession): Promise<void> {
+  const { email, password } = session;
+  if (!email || !password) throw new Error("Email and password are required");
+
   const loginGetManual = await fetch(`${getUrlBase()}/info/profil/login`, { redirect: "manual" });
   let loginPageUrl = `${getUrlBase()}/info/profil/login`;
-  cookies = mergeCookies("", loginGetManual.headers.getSetCookie());
+  session.cookies = mergeCookies("", loginGetManual.headers.getSetCookie());
 
   if (loginGetManual.status >= 300 && loginGetManual.status < 400) {
     const loc = loginGetManual.headers.get("location") || "";
     loginPageUrl = loc.startsWith("http") ? loc : new URL(loc, getUrlBase()).href;
-    const step2 = await fetch(loginPageUrl, { redirect: "manual", headers: { Cookie: cookies } });
-    cookies = mergeCookies(cookies, step2.headers.getSetCookie());
+    const step2 = await fetch(loginPageUrl, { redirect: "manual", headers: { Cookie: session.cookies } });
+    session.cookies = mergeCookies(session.cookies, step2.headers.getSetCookie());
     if (step2.status >= 300 && step2.status < 400) {
       loginPageUrl = step2.headers.get("location") || loginPageUrl;
       if (!loginPageUrl.startsWith("http")) loginPageUrl = new URL(loginPageUrl, getUrlBase()).href;
     }
   }
 
-  // Get the actual page HTML to find the form action
-  const pageRes = await fetch(loginPageUrl, { headers: { Cookie: cookies } });
-  cookies = mergeCookies(cookies, pageRes.headers.getSetCookie());
+  const pageRes = await fetch(loginPageUrl, { headers: { Cookie: session.cookies } });
+  session.cookies = mergeCookies(session.cookies, pageRes.headers.getSetCookie());
   const html = await pageRes.text();
   const formAction = html.match(/form[^>]*action="([^"]*)"/)?.[1] || "/info/profil/loginaction";
   const actionUrl = formAction.startsWith("http") ? formAction : new URL(formAction, getUrlBase()).href;
 
-  // Step 2: POST credentials to the form action
   const form = new URLSearchParams({ kennung: email, passwort: password });
   const res = await fetch(actionUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: cookies },
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Cookie: session.cookies },
     body: form.toString(),
     redirect: "manual",
   });
 
-  cookies = mergeCookies(cookies, res.headers.getSetCookie());
+  session.cookies = mergeCookies(session.cookies, res.headers.getSetCookie());
 
   if (res.status >= 300 && res.status < 400) {
     const location = res.headers.get("location") || "";
     if (location.includes("/login") || location.includes("/connexion")) {
-      throw new Error("Login failed — check KICKTIPP_EMAIL and KICKTIPP_PASSWORD");
+      throw new Error("Login failed — check email and password");
     }
   }
 
-  loggedIn = true;
-  console.log("[kicktipp] Logged in successfully");
+  session.loggedIn = true;
+  console.log(`[kicktipp] Logged in: ${email}`);
 }
 
-async function fetchPage(url: string): Promise<cheerio.CheerioAPI> {
-  if (!loggedIn) await login();
+async function fetchPage(url: string, session: UserSession): Promise<cheerio.CheerioAPI> {
+  if (!session.loggedIn) await loginSession(session);
 
-  let res = await fetch(url, { headers: { Cookie: cookies }, redirect: "manual" });
-  cookies = mergeCookies(cookies, res.headers.getSetCookie());
+  let res = await fetch(url, { headers: { Cookie: session.cookies }, redirect: "manual" });
+  session.cookies = mergeCookies(session.cookies, res.headers.getSetCookie());
 
-  // Follow up to 5 redirects manually to capture cookies
   for (let i = 0; i < 5 && res.status >= 300 && res.status < 400; i++) {
     const location = res.headers.get("location") || "";
 
     if (location.includes("/login") || location.includes("/connexion")) {
-      loggedIn = false;
-      await login();
-      res = await fetch(url, { headers: { Cookie: cookies }, redirect: "manual" });
-      cookies = mergeCookies(cookies, res.headers.getSetCookie());
+      session.loggedIn = false;
+      await loginSession(session);
+      res = await fetch(url, { headers: { Cookie: session.cookies }, redirect: "manual" });
+      session.cookies = mergeCookies(session.cookies, res.headers.getSetCookie());
       if (res.status >= 300 && res.status < 400) {
         const loc2 = res.headers.get("location") || "";
         if (loc2.includes("/login") || loc2.includes("/connexion")) {
@@ -132,23 +144,23 @@ async function fetchPage(url: string): Promise<cheerio.CheerioAPI> {
     }
 
     const nextUrl = location.startsWith("http") ? location : new URL(location, url).href;
-    res = await fetch(nextUrl, { headers: { Cookie: cookies }, redirect: "manual" });
-    cookies = mergeCookies(cookies, res.headers.getSetCookie());
+    res = await fetch(nextUrl, { headers: { Cookie: session.cookies }, redirect: "manual" });
+    session.cookies = mergeCookies(session.cookies, res.headers.getSetCookie());
   }
 
-  const html = await res.text();
-  return cheerio.load(html);
+  session.lastActive = Date.now();
+  return cheerio.load(await res.text());
 }
 
-async function submitForm(url: string, fields: Record<string, string>): Promise<cheerio.CheerioAPI> {
-  if (!loggedIn) await login();
+async function submitForm(url: string, fields: Record<string, string>, session: UserSession): Promise<cheerio.CheerioAPI> {
+  if (!session.loggedIn) await loginSession(session);
 
   const form = new URLSearchParams(fields);
   const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
-      Cookie: cookies,
+      Cookie: session.cookies,
     },
     body: form.toString(),
     redirect: "manual",
@@ -156,25 +168,19 @@ async function submitForm(url: string, fields: Record<string, string>): Promise<
 
   const setCookies = res.headers.getSetCookie();
   if (setCookies.length) {
-    cookies = setCookies.map((c) => c.split(";")[0]).join("; ");
+    session.cookies = setCookies.map((c) => c.split(";")[0]).join("; ");
   }
 
   if (res.status >= 300 && res.status < 400) {
     const location = res.headers.get("location") || "";
     const absoluteUrl = location.startsWith("http") ? location : new URL(location, url).href;
-    const followRes = await fetch(absoluteUrl, { headers: { Cookie: cookies } });
+    const followRes = await fetch(absoluteUrl, { headers: { Cookie: session.cookies } });
     return cheerio.load(await followRes.text());
   }
 
+  session.lastActive = Date.now();
   return cheerio.load(await res.text());
 }
-
-// ── State ─────────────────────────────────────────────────────────
-
-const state = {
-  community: "",
-  player: "",
-};
 
 // ── Parsing helpers ───────────────────────────────────────────────
 
@@ -207,28 +213,24 @@ function parseMatchDate(dateStr: string): Date | null {
 
 // ── Tool implementations ──────────────────────────────────────────
 
-function ensureCommunity(): string {
-  if (!state.community) throw new Error("No community set. Call set_community first.");
-  return state.community;
+function ensureCommunity(session: UserSession): string {
+  if (!session.community) throw new Error("No community set. Call set_community first.");
+  return session.community;
 }
 
-async function getStatus() {
-  const email = process.env.KICKTIPP_EMAIL;
-  const password = process.env.KICKTIPP_PASSWORD;
+async function getStatus(session: UserSession) {
   return {
-    credentials_saved: !!(email && password),
-    community: state.community || null,
-    player: state.player || null,
-    setup_needed: !email || !password || !state.community,
-    setup_instructions: !email || !password
-      ? "Set KICKTIPP_EMAIL and KICKTIPP_PASSWORD environment variables"
-      : !state.community ? "Call set_community to select your community" : null,
+    credentials_saved: true,
+    community: session.community || null,
+    player: session.player || null,
+    setup_needed: !session.community,
+    setup_instructions: !session.community ? "Call set_community to select your community" : null,
   };
 }
 
-async function getTodayMatches() {
-  const community = ensureCommunity();
-  const $ = await fetchPage(predictUrl(community));
+async function getTodayMatches(session: UserSession) {
+  const community = ensureCommunity(session);
+  const $ = await fetchPage(predictUrl(community), session);
   const content = $("#kicktipp-content");
   const title = content.find("div.pagetitle").text().trim();
   const tbody = content.find("tbody");
@@ -278,9 +280,9 @@ async function getTodayMatches() {
   return { title, matches };
 }
 
-async function getBets(matchday?: number) {
-  const community = ensureCommunity();
-  const $ = await fetchPage(predictUrl(community, matchday));
+async function getBets(session: UserSession, matchday?: number) {
+  const community = ensureCommunity(session);
+  const $ = await fetchPage(predictUrl(community, matchday), session);
   const content = $("#kicktipp-content");
   const title = content.find("div.pagetitle").text().trim();
   let maxMatchday = 34;
@@ -331,11 +333,11 @@ async function getBets(matchday?: number) {
   return { title, matches, maxMatchday };
 }
 
-async function getSchedule(matchday?: number) {
-  const community = ensureCommunity();
+async function getSchedule(session: UserSession, matchday?: number) {
+  const community = ensureCommunity(session);
   let url = `${getUrlBase()}/${encodeURIComponent(community)}/${route("schedule")}`;
   if (matchday !== undefined) url += `?spieltagIndex=${matchday}`;
-  const $ = await fetchPage(url);
+  const $ = await fetchPage(url, session);
   const content = $("#kicktipp-content");
   const title = content.find("div.pagetitle").text().trim();
   const table = content.find("table#spiele");
@@ -363,9 +365,9 @@ async function getSchedule(matchday?: number) {
   return { title, matches };
 }
 
-async function getLeaderboard(matchday?: number, bonus = false) {
-  const community = ensureCommunity();
-  const $ = await fetchPage(leaderboardUrl(community, matchday, bonus));
+async function getLeaderboard(session: UserSession, matchday?: number, bonus = false) {
+  const community = ensureCommunity(session);
+  const $ = await fetchPage(leaderboardUrl(community, matchday, bonus), session);
   const content = $("#kicktipp-content");
   const title = content.find("div.pagetitle").text().trim();
 
@@ -429,14 +431,14 @@ async function getLeaderboard(matchday?: number, bonus = false) {
       matchdayPoints: $(tr).find("td.spieltagspunkte").text().trim(),
       bonus: $(tr).find("td.bonus").text().trim(),
       total: $(tr).find("td.gesamtpunkte").text().trim(),
-      isCurrentPlayer: !!state.player && name === state.player,
+      isCurrentPlayer: !!session.player && name === session.player,
     });
   });
 
   return { title, matches, bonusQuestions, rankings };
 }
 
-async function getOverview(view = "matchday-points") {
+async function getOverview(session: UserSession, view = "matchday-points") {
   const VIEWS: Record<string, [string, string]> = {
     "matchday-points": ["spieltagspunkte", "Matchday points"],
     "standings": ["platzierungen", "Standings"],
@@ -446,8 +448,8 @@ async function getOverview(view = "matchday-points") {
   };
   if (!(view in VIEWS)) throw new Error(`Unknown view '${view}'. Options: ${Object.keys(VIEWS).join(", ")}`);
   const [ansicht, label] = VIEWS[view];
-  const community = ensureCommunity();
-  const $ = await fetchPage(`${getUrlBase()}/${encodeURIComponent(community)}/${route("overview")}?ansicht=${ansicht}`);
+  const community = ensureCommunity(session);
+  const $ = await fetchPage(`${getUrlBase()}/${encodeURIComponent(community)}/${route("overview")}?ansicht=${ansicht}`, session);
   const content = $("#kicktipp-content");
   const ranking = content.find("table#ranking");
   if (!ranking.length) return { label, maxMatchday: 0, players: [] };
@@ -481,21 +483,21 @@ async function getOverview(view = "matchday-points") {
       bonus: $(tr).find("td.bonus").text().trim(),
       wins: $(tr).find("td.siege").text().trim(),
       total: $(tr).find("td.punkte").text().trim(),
-      isCurrentPlayer: !!state.player && name === state.player,
+      isCurrentPlayer: !!session.player && name === session.player,
     });
   });
 
   return { label, maxMatchday, players };
 }
 
-async function getTable(option?: string) {
-  const community = ensureCommunity();
+async function getTable(session: UserSession, option?: string) {
+  const community = ensureCommunity(session);
   let url = `${getUrlBase()}/${encodeURIComponent(community)}/${route("tables")}`;
   let label = "League Table";
   if (option === "home") { url += "?option=heim"; label = "League Table (Home)"; }
   else if (option === "away") { url += "?option=gast"; label = "League Table (Away)"; }
 
-  const $ = await fetchPage(url);
+  const $ = await fetchPage(url, session);
   const content = $("#kicktipp-content");
   const table = content.find("table").first();
   if (!table.length) return { label, teams: [] };
@@ -522,9 +524,9 @@ async function getTable(option?: string) {
   return { label, teams };
 }
 
-async function getRules() {
-  const community = ensureCommunity();
-  const $ = await fetchPage(`${getUrlBase()}/${encodeURIComponent(community)}/${route("rules")}`);
+async function getRules(session: UserSession) {
+  const community = ensureCommunity(session);
+  const $ = await fetchPage(`${getUrlBase()}/${encodeURIComponent(community)}/${route("rules")}`, session);
   const pagecontent = $("#kicktipp-content div.pagecontent");
   if (!pagecontent.length) return [];
 
@@ -556,8 +558,8 @@ async function getRules() {
   return sections;
 }
 
-async function getCommunities() {
-  const $ = await fetchPage(`${getUrlBase()}/info/profil/meinetipprunden`);
+async function getCommunities(session: UserSession) {
+  const $ = await fetchPage(`${getUrlBase()}/info/profil/meinetipprunden`, session);
   const links = $("#kicktipp-content a");
   const communities: string[] = [];
   links.each((_, el) => {
@@ -577,9 +579,9 @@ async function getCommunities() {
   return communities;
 }
 
-async function getPlayers() {
-  const community = ensureCommunity();
-  const $ = await fetchPage(leaderboardUrl(community));
+async function getPlayers(session: UserSession) {
+  const community = ensureCommunity(session);
+  const $ = await fetchPage(leaderboardUrl(community), session);
   const players: string[] = [];
   $("table#ranking tbody tr").each((_, tr) => {
     const name = $(tr).find("div.mg_name").text().trim();
@@ -588,9 +590,9 @@ async function getPlayers() {
   return players;
 }
 
-async function getBonusQuestions() {
-  const community = ensureCommunity();
-  const $ = await fetchPage(`${getUrlBase()}/${encodeURIComponent(community)}/${route("predict")}?bonus=true`);
+async function getBonusQuestions(session: UserSession) {
+  const community = ensureCommunity(session);
+  const $ = await fetchPage(`${getUrlBase()}/${encodeURIComponent(community)}/${route("predict")}?bonus=true`, session);
   const content = $("#kicktipp-content");
   const table = content.find("table#tippabgabeFragen");
   if (!table.length) return [];
@@ -627,20 +629,20 @@ async function getBonusQuestions() {
   return questions;
 }
 
-function setCommunity(name: string) {
-  state.community = name;
+function setCommunity(session: UserSession, name: string) {
+  session.community = name;
   return { community: name };
 }
 
-function setPlayer(name: string) {
-  state.player = name;
+function setPlayer(session: UserSession, name: string) {
+  session.player = name;
   return { player: name };
 }
 
-async function placeBets(bets: string[], matchday?: number, dryRun = false) {
-  const community = ensureCommunity();
+async function placeBets(session: UserSession, bets: string[], matchday?: number, dryRun = false) {
+  const community = ensureCommunity(session);
   const url = predictUrl(community, matchday);
-  const $ = await fetchPage(url);
+  const $ = await fetchPage(url, session);
   const tbody = $("#kicktipp-content tbody");
   if (!tbody.length) throw new Error("No matches found.");
 
@@ -664,14 +666,12 @@ async function placeBets(bets: string[], matchday?: number, dryRun = false) {
 
   if (!editable.length) throw new Error("No editable matches found.");
 
-  // Also extract all existing form field values (hidden fields, existing bets)
   const formFields: Record<string, string> = {};
   $("#kicktipp-content form input[type='hidden']").each((_, el) => {
     const name = $(el).attr("name");
     const value = $(el).attr("value") || "";
     if (name) formFields[name] = value;
   });
-  // Pre-fill all existing bet values
   for (const match of editable) {
     const heimVal = $(`input[name="${match.heimName}"]`).attr("value") || "";
     const gastVal = $(`input[name="${match.gastName}"]`).attr("value") || "";
@@ -719,25 +719,23 @@ async function placeBets(bets: string[], matchday?: number, dryRun = false) {
     ? (formAction.startsWith("http") ? formAction : new URL(formAction, url).href)
     : url;
 
-  await submitForm(submitUrl, formFields);
+  await submitForm(submitUrl, formFields, session);
   return placed;
 }
 
-async function placeBonusBets(bets: string[], dryRun = false) {
-  const community = ensureCommunity();
+async function placeBonusBets(session: UserSession, bets: string[], dryRun = false) {
+  const community = ensureCommunity(session);
   const url = `${getUrlBase()}/${encodeURIComponent(community)}/${route("predict")}?bonus=true`;
-  const questions = await getBonusQuestions();
+  const questions = await getBonusQuestions(session);
   if (!questions.length) throw new Error("No editable bonus questions found.");
 
   const formFields: Record<string, string> = {};
-  // Fetch the page again to get hidden form fields
-  const $ = await fetchPage(url);
+  const $ = await fetchPage(url, session);
   $("#kicktipp-content form input[type='hidden']").each((_, el) => {
     const name = $(el).attr("name");
     const value = $(el).attr("value") || "";
     if (name) formFields[name] = value;
   });
-  // Pre-fill existing selections
   for (const q of questions) {
     for (const sel of q.selects) {
       formFields[sel.name] = sel.selected;
@@ -776,7 +774,7 @@ async function placeBonusBets(bets: string[], dryRun = false) {
     ? (formAction.startsWith("http") ? formAction : new URL(formAction, url).href)
     : url;
 
-  await submitForm(submitUrl, formFields);
+  await submitForm(submitUrl, formFields, session);
   return placed;
 }
 
@@ -795,23 +793,28 @@ export const VALID_TOOLS: ToolName[] = [
   "set_community", "set_player", "place_bets", "place_bonus_bets",
 ];
 
-export async function callTool(name: string, args?: Record<string, unknown>): Promise<unknown> {
+export const SHARED_TOOLS = new Set<string>([
+  "get_schedule", "get_leaderboard", "get_overview", "get_table",
+  "get_rules", "get_players",
+]);
+
+export async function callTool(name: string, args: Record<string, unknown> | undefined, session: UserSession): Promise<unknown> {
   switch (name) {
-    case "get_status": return getStatus();
-    case "get_today_matches": return getTodayMatches();
-    case "get_bets": return getBets(args?.matchday as number | undefined);
-    case "get_schedule": return getSchedule(args?.matchday as number | undefined);
-    case "get_leaderboard": return getLeaderboard(args?.matchday as number | undefined, args?.bonus as boolean | undefined);
-    case "get_overview": return getOverview(args?.view as string | undefined);
-    case "get_table": return getTable(args?.option as string | undefined);
-    case "get_rules": return getRules();
-    case "get_communities": return getCommunities();
-    case "get_players": return getPlayers();
-    case "get_bonus_questions": return getBonusQuestions();
-    case "set_community": return setCommunity(args?.name as string);
-    case "set_player": return setPlayer(args?.name as string);
-    case "place_bets": return placeBets(args?.bets as string[], args?.matchday as number | undefined, args?.dry_run as boolean | undefined);
-    case "place_bonus_bets": return placeBonusBets(args?.bets as string[], args?.dry_run as boolean | undefined);
+    case "get_status": return getStatus(session);
+    case "get_today_matches": return getTodayMatches(session);
+    case "get_bets": return getBets(session, args?.matchday as number | undefined);
+    case "get_schedule": return getSchedule(session, args?.matchday as number | undefined);
+    case "get_leaderboard": return getLeaderboard(session, args?.matchday as number | undefined, args?.bonus as boolean | undefined);
+    case "get_overview": return getOverview(session, args?.view as string | undefined);
+    case "get_table": return getTable(session, args?.option as string | undefined);
+    case "get_rules": return getRules(session);
+    case "get_communities": return getCommunities(session);
+    case "get_players": return getPlayers(session);
+    case "get_bonus_questions": return getBonusQuestions(session);
+    case "set_community": return setCommunity(session, args?.name as string);
+    case "set_player": return setPlayer(session, args?.name as string);
+    case "place_bets": return placeBets(session, args?.bets as string[], args?.matchday as number | undefined, args?.dry_run as boolean | undefined);
+    case "place_bonus_bets": return placeBonusBets(session, args?.bets as string[], args?.dry_run as boolean | undefined);
     default: throw new Error(`Unknown tool: ${name}`);
   }
 }

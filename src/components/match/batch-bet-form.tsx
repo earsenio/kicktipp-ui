@@ -1,9 +1,12 @@
+// Single-matchday bet form used by /matchday/[n]. Renders all matches as
+// score input cards and submits only the modified predictions in one batch.
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { cn, API_BASE } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 import { MatchCardBet } from "@/components/match/match-card";
 import { MatchdayPills } from "@/components/shared/matchday-pills";
 import { Loader2, Check } from "lucide-react";
@@ -80,7 +83,7 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
     });
 
     try {
-      const res = await fetch(`${API_BASE}/api/kicktipp`, {
+      const res = await apiFetch("/api/kicktipp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -129,13 +132,13 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
   return (
     <div className="flex flex-col h-full -m-4 md:-m-6">
       {/* Header */}
-      <div className="px-4 pt-3 pb-1 flex items-start justify-between">
+      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
         <div>
-          <h1 className="text-[22px] font-extrabold tracking-tight">Predictions</h1>
-          <p className="text-xs text-white/40 mt-0.5">{title || `Matchday ${matchday}`}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight">Predictions</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{title || `Matchday ${matchday}`}</p>
         </div>
         {missingCount > 0 && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/[0.12] text-amber-500">
+          <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
             {missingCount} missing
           </span>
         )}
@@ -179,15 +182,15 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
       </div>
 
       {/* Floating submit bar — sits above mobile nav (52px + safe area) */}
-      <div className="fixed bottom-[calc(52px+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 md:left-56 z-40 px-4 py-2.5 glass-nav border-t border-white/[0.06]">
+      <div className="fixed bottom-[calc(52px+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 md:left-56 z-40 px-4 py-2.5 glass-nav border-t border-border">
         <button
           onClick={handleSubmit}
           disabled={pendingCount === 0 && !submitting}
           className={cn(
             "w-full rounded-xl py-3.5 text-sm font-bold transition-all",
             pendingCount > 0 || submitting
-              ? "bg-primary text-white cursor-pointer shadow-lg shadow-primary/25"
-              : "bg-white/[0.06] text-white/25 cursor-default"
+              ? "bg-primary text-primary-foreground cursor-pointer shadow-lg shadow-primary/25"
+              : "bg-muted text-muted-foreground cursor-default"
           )}
         >
           <AnimatePresence mode="wait">

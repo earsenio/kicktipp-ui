@@ -2,13 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, DM_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Sidebar } from "@/components/layout/sidebar";
-import { Header } from "@/components/layout/header";
-import { MobileNav } from "@/components/layout/mobile-nav";
 import { Toaster } from "@/components/ui/sonner";
-import { ShortcutsProvider } from "@/components/layout/shortcuts-provider";
-import { PageTransition } from "@/components/layout/page-transition";
-import { MatchdayProvider } from "@/components/match/matchday-context";
+import { AuthProvider } from "@/components/auth/auth-provider";
+import { AppShell } from "@/components/layout/app-shell";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -23,13 +19,13 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kicktipp",
-  description: "Modern web UI for kicktipp.com — sports prediction dashboard",
+  title: "Tippkick",
+  description: "Open-source web UI for kicktipp.com — sports prediction game",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "KickTipp",
+    title: "Tippkick",
   },
 };
 
@@ -52,21 +48,10 @@ export default function RootLayout({
     >
       <body className="min-h-dvh">
         <ThemeProvider>
-          <ShortcutsProvider>
-            <div className="flex min-h-dvh overflow-x-hidden">
-              <Sidebar />
-              <MatchdayProvider>
-                <div className="flex-1 flex flex-col min-h-dvh min-w-0 pt-14">
-                  <Header />
-                  <main className="flex-1 p-4 md:p-6 pb-20 md:pb-6">
-                    <PageTransition>{children}</PageTransition>
-                  </main>
-                </div>
-              </MatchdayProvider>
-            </div>
-            <MobileNav />
+          <AuthProvider>
+            <AppShell>{children}</AppShell>
             <Toaster richColors position="top-right" />
-          </ShortcutsProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

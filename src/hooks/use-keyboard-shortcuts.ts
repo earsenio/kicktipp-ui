@@ -1,3 +1,5 @@
+// Keyboard shortcuts: G+key chords for navigation (G+P = predictions,
+// G+L = leaderboard, etc.) and R to refresh the current page data.
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";

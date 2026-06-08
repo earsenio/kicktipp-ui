@@ -1,3 +1,5 @@
+// Shared state for the matchday pill strip in the header and the active matchday
+// indicator. The predict-view registers a click handler so pills scroll to sections.
 "use client";
 
 import { createContext, useContext, useState, type ReactNode } from "react";

@@ -1,36 +1,99 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tippkick
 
-## Getting Started
+Open-source web UI for [kicktipp.com](https://www.kicktipp.com) — the German sports prediction game.
 
-First, run the development server:
+Kicktipp has no public API. Tippkick talks to it through the [kicktipp-agent](https://github.com/christianheidorn/kicktipp-agent) MCP server, which scrapes kicktipp.com using headless Chromium. The goal: you never need to open kicktipp.com again.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Features
+
+- **Batch predictions** — fill in all scores, submit once
+- **Infinite scroll** — browse matchdays without page reloads
+- **Live updates** — scores refresh automatically during matches
+- **Leaderboard & overview** — season standings, player stats, charts
+- **Bonus questions** — answer bonus questions with dropdown selectors
+- **Multi-user** — each friend logs in with their own kicktipp.com credentials
+- **PWA** — install on your phone's home screen
+- **Dark mode** — default dark theme with light mode toggle
+- **Keyboard shortcuts** — G+P predictions, G+L leaderboard, R refresh
+
+## Architecture
+
+```
+Browser  -->  Hono API server  -->  kicktipp-agent (MCP)  -->  kicktipp.com
+  (React)      (auth, cache)        (headless Chromium)        (HTML scraping)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The Next.js frontend is statically exported and served by the same Hono process that runs the API. No database — sessions and cache live in memory.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Prerequisites
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Node.js 20+**
+- **kicktipp-agent MCP server** — [install instructions](https://github.com/christianheidorn/kicktipp-agent):
+  ```bash
+  git clone https://github.com/christianheidorn/kicktipp-agent.git
+  cd kicktipp-agent
+  npm install && npx playwright install chromium && npm run build && npm link
+  ```
 
-## Learn More
+## Quick Start
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+git clone https://github.com/earsenio/tippkick.git
+cd tippkick
+npm install
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Create `.env.local`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```env
+KICKTIPP_EMAIL=your@email.com
+KICKTIPP_PASSWORD=yourpassword
+KICKTIPP_URL=https://www.kicktipp.com
+```
 
-## Deploy on Vercel
+Start development servers:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run dev:all
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000).
+
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `KICKTIPP_URL` | No | `https://www.kicktipp.com` | Kicktipp domain (`.com`, `.de`, or `.fr`) |
+| `PORT` | No | `3001` | API server port |
+| `NEXT_PUBLIC_API_URL` | No | `http://localhost:3001` | API URL for browser requests (dev only) |
+
+User credentials are provided at login time and stored in-memory only.
+
+## Production Deployment (Railway)
+
+```bash
+npm run build    # Static export to ./out
+npm start        # Hono serves API + static files on one port
+```
+
+The included `railway.toml` handles Railway deployment. Set `KICKTIPP_URL` in the Railway dashboard. Each user logs in with their own credentials — no server-side email/password needed in production.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 15 (App Router, static export) |
+| Language | TypeScript (strict) |
+| Styling | Tailwind CSS 4 + shadcn/ui |
+| Animations | Framer Motion |
+| Charts | Recharts |
+| API Server | Hono |
+| MCP Client | Per-session headless Chromium via kicktipp-agent |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[MIT](LICENSE)

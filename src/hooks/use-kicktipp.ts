@@ -1,7 +1,10 @@
+// SWR-style data-fetching hook for MCP tools. Handles loading, errors,
+// abort on unmount, optional polling, and auto-redirects to /login on 401.
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { API_BASE } from "@/lib/utils";
+import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 
 interface UseKicktippOptions<T> {
   tool: string;
@@ -30,6 +33,7 @@ export function useKicktipp<T>({
   const argsKey = args ? JSON.stringify(args) : "";
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const router = useRouter();
 
   const fetchData = useCallback(async () => {
     abortRef.current?.abort();
@@ -39,12 +43,16 @@ export function useKicktipp<T>({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/kicktipp`, {
+      const res = await apiFetch("/api/kicktipp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tool, args }),
         signal: controller.signal,
       });
+      if (res.status === 401) {
+        router.replace("/login");
+        return;
+      }
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Request failed");
       setData(json.data as T);

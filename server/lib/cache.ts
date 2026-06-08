@@ -1,3 +1,6 @@
+// TTL-based in-memory cache for MCP tool results.
+// Expensive tools (headless browser scrapes) are cached to avoid redundant calls.
+// Writes (place_bets, place_bonus_bets) are never cached.
 export const TTL = {
   TODAY_MATCHES: 60,
   BETS: 30,
@@ -47,6 +50,7 @@ export function get(key: string): unknown | null {
 
 export function set(key: string, data: unknown, ttlSeconds: number): void {
   if (ttlSeconds <= 0) return;
+  // FIFO eviction: cap memory usage at MAX_ENTRIES
   if (store.size >= MAX_ENTRIES) {
     const oldest = store.keys().next().value;
     if (oldest) store.delete(oldest);
@@ -65,11 +69,12 @@ export function invalidate(keyPrefix: string): void {
   }
 }
 
-export function cacheKey(tool: string, args?: Record<string, unknown>): string {
-  if (!args || Object.keys(args).length === 0) return tool;
+export function cacheKey(tool: string, args?: Record<string, unknown>, userId?: string): string {
+  const prefix = userId ? `${userId}:` : "";
+  if (!args || Object.keys(args).length === 0) return `${prefix}${tool}`;
   const sorted = Object.keys(args)
     .sort()
     .map((k) => `${k}=${JSON.stringify(args[k])}`)
     .join("&");
-  return `${tool}:${sorted}`;
+  return `${prefix}${tool}:${sorted}`;
 }

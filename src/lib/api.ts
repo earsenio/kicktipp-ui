@@ -1,0 +1,32 @@
+// Authenticated fetch wrapper. Stores the session token in sessionStorage
+// and sends it as a Bearer header on every request. This works cross-origin
+// in dev (frontend :3000, API :3001) where cookies are unreliable.
+import { API_BASE } from "@/lib/utils";
+
+const STORAGE_KEY = "kt-token";
+
+let authToken: string | null = null;
+
+if (typeof window !== "undefined") {
+  authToken = sessionStorage.getItem(STORAGE_KEY);
+}
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+  if (typeof window !== "undefined") {
+    if (token) sessionStorage.setItem(STORAGE_KEY, token);
+    else sessionStorage.removeItem(STORAGE_KEY);
+  }
+}
+
+export function getAuthToken(): string | null {
+  return authToken;
+}
+
+export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers);
+  if (authToken) {
+    headers.set("Authorization", `Bearer ${authToken}`);
+  }
+  return fetch(`${API_BASE}${path}`, { ...init, headers, credentials: "include" });
+}

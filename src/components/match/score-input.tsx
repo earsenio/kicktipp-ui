@@ -1,3 +1,5 @@
+// Score input widget with +/- buttons for touch and arrow-key support for keyboard.
+// Accepts values 0-15. Tab navigates between home/away and to the next match.
 "use client";
 
 import { cn } from "@/lib/utils";
@@ -68,8 +70,8 @@ export function ScoreInput({
   if (isFinished) {
     return (
       <div className="flex flex-col items-center">
-        <div className="w-12 h-[52px] rounded-xl bg-white/[0.03] border-2 border-white/[0.08] flex items-center justify-center font-mono text-2xl font-extrabold text-white/40">
-          {value !== null ? value : "–"}
+        <div className="w-14 h-14 rounded-xl bg-muted border-2 border-border flex items-center justify-center font-mono text-2xl font-extrabold text-muted-foreground">
+          {value !== null ? value : "-"}
         </div>
       </div>
     );
@@ -82,7 +84,7 @@ export function ScoreInput({
         tabIndex={-1}
         disabled={disabled}
         onClick={increment}
-        className="h-8 w-8 rounded-full bg-white/[0.04] flex items-center justify-center text-white/50 hover:text-white/80 hover:bg-white/[0.08] disabled:opacity-30 transition-all select-none"
+        className="h-8 w-8 rounded-full bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all select-none"
         aria-label="Increment"
       >
         <ChevronUp className="h-4 w-4" />
@@ -107,12 +109,12 @@ export function ScoreInput({
         }
         transition={shake ? { duration: 0.3 } : { duration: 0.6 }}
         className={cn(
-          "w-12 h-[52px] text-center font-mono text-2xl font-extrabold rounded-xl border-2 bg-white/[0.05] transition-all",
+          "w-14 h-14 text-center font-mono text-2xl font-extrabold rounded-xl border-2 bg-muted transition-all",
           "focus:outline-none focus:ring-2 focus:ring-primary/50",
           disabled && "opacity-40 cursor-not-allowed",
-          modified && !saved && "border-amber-500/40",
-          saved && "border-green-500/40",
-          !modified && !saved && !disabled && "border-white/[0.08]"
+          modified && !saved && "border-amber-500/60",
+          saved && "border-green-500/60",
+          !modified && !saved && !disabled && "border-border"
         )}
       />
       <button
@@ -120,7 +122,7 @@ export function ScoreInput({
         tabIndex={-1}
         disabled={disabled || value === null || value <= 0}
         onClick={decrement}
-        className="h-8 w-8 rounded-full bg-white/[0.04] flex items-center justify-center text-white/50 hover:text-white/80 hover:bg-white/[0.08] disabled:opacity-30 transition-all select-none"
+        className="h-8 w-8 rounded-full bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-30 transition-all select-none"
         aria-label="Decrement"
       >
         <ChevronDown className="h-4 w-4" />

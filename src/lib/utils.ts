@@ -1,3 +1,4 @@
+// Shared utilities: Tailwind class merging, score parsing, API base URL.
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
