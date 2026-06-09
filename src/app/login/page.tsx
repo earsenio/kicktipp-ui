@@ -96,6 +96,12 @@ export default function LoginPage() {
         <p className="text-xs text-center text-muted-foreground">
           Your credentials are used to authenticate with kicktipp.com and are never stored on disk.
         </p>
+        <p className="text-xs text-center text-muted-foreground">
+          Don&apos;t have an account?{" "}
+          <a href="https://www.kicktipp.com" target="_blank" rel="noopener noreferrer" className="underline text-primary hover:text-primary/80">
+            Sign up on kicktipp.com
+          </a>
+        </p>
       </div>
     </div>
   );
