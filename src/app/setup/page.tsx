@@ -8,7 +8,7 @@ import { CheckCircle2, XCircle, Loader2, ArrowRight, RefreshCw } from "lucide-re
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 
-type Step = "connection" | "community" | "player" | "done";
+type Step = "connection" | "community" | "done";
 
 async function fetchApi(tool: string, args?: Record<string, unknown>) {
   const res = await apiFetch("/api/kicktipp", {
@@ -26,7 +26,6 @@ export default function SetupPage() {
   const [step, setStep] = useState<Step>("connection");
   const [connected, setConnected] = useState<boolean | null>(null);
   const [communities, setCommunities] = useState<string[]>([]);
-  const [players, setPlayers] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,9 +35,13 @@ export default function SetupPage() {
         setConnected(r.ok);
         if (r.ok) return r.json();
       })
-      .then((json) => {
+      .then(async (json) => {
         if (json?.data?.community) {
-          router.replace("/");
+          try {
+            const data = await fetchApi("get_communities");
+            setCommunities(data as string[]);
+          } catch {}
+          setStep("community");
         }
       })
       .catch(() => setConnected(false));
@@ -64,24 +67,9 @@ export default function SetupPage() {
     setError(null);
     try {
       await fetchApi("set_community", { name });
-      const data = await fetchApi("get_players");
-      setPlayers(data as string[]);
-      setStep("player");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to select community");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const selectPlayer = async (name: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      await fetchApi("set_player", { name });
       setStep("done");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to select player");
+      setError(err instanceof Error ? err.message : "Failed to select community");
     } finally {
       setLoading(false);
     }
@@ -137,7 +125,7 @@ export default function SetupPage() {
         <StepCard
           title="2. Community"
           active={step === "community"}
-          done={step === "player" || step === "done"}
+          done={step === "done"}
         >
           {step === "community" && (
             <div className="space-y-2">
@@ -174,41 +162,7 @@ export default function SetupPage() {
           )}
         </StepCard>
 
-        <StepCard
-          title="3. Player Identity"
-          active={step === "player"}
-          done={step === "done"}
-        >
-          {step === "player" && (
-            <div className="space-y-2">
-              {players.length === 0 ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    No players found, or the community hasn&apos;t started yet.
-                  </p>
-                  <Button size="sm" onClick={() => setStep("done")}>
-                    Skip for now
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </div>
-              ) : (
-                players.map((p) => (
-                  <Button
-                    key={p}
-                    variant="outline"
-                    className="w-full justify-start"
-                    disabled={loading}
-                    onClick={() => selectPlayer(p)}
-                  >
-                    {p}
-                  </Button>
-                ))
-              )}
-            </div>
-          )}
-        </StepCard>
-
-        <StepCard title="4. Done" active={step === "done"} done={false}>
+        <StepCard title="3. Done" active={step === "done"} done={false}>
           {step === "done" && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-accent-green">
