@@ -216,6 +216,11 @@ app.post("/api/kicktipp", async (c) => {
   syncCookieCache(session);
   payload = await refreshTokenIfChanged(c, session, payload);
 
+  const NO_COMMUNITY_TOOLS = new Set(["get_communities", "get_status", "set_community"]);
+  if (!session.community && !NO_COMMUNITY_TOOLS.has(tool)) {
+    return c.json({ error: "No community set. Please select a community first.", code: "NO_COMMUNITY" }, 400);
+  }
+
   // Shared tools (schedule, leaderboard, etc.) use a global cache key;
   // per-user tools (bets, today_matches) are scoped by email.
   const userId = SHARED_TOOLS.has(tool) ? undefined : session.id;
@@ -250,7 +255,8 @@ app.post("/api/kicktipp", async (c) => {
     syncCookieCache(session);
     console.log(`[${tool}] ${Date.now() - start}ms`);
 
-    if (ttl > 0) {
+    const isEmpty = tool === "get_communities" && Array.isArray(data) && data.length === 0;
+    if (ttl > 0 && !isEmpty) {
       set(key, data, ttl);
     }
 

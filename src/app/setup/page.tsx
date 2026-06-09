@@ -10,11 +10,11 @@ import { apiFetch } from "@/lib/api";
 
 type Step = "connection" | "community" | "done";
 
-async function fetchApi(tool: string, args?: Record<string, unknown>) {
+async function fetchApi(tool: string, args?: Record<string, unknown>, skipCache = false) {
   const res = await apiFetch("/api/kicktipp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tool, args }),
+    body: JSON.stringify({ tool, args, skipCache }),
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error);
@@ -26,6 +26,7 @@ export default function SetupPage() {
   const [step, setStep] = useState<Step>("connection");
   const [connected, setConnected] = useState<boolean | null>(null);
   const [communities, setCommunities] = useState<string[]>([]);
+  const [manualName, setManualName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,11 +48,11 @@ export default function SetupPage() {
       .catch(() => setConnected(false));
   }, [router]);
 
-  const loadCommunities = async () => {
+  const loadCommunities = async (skipCache = false) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchApi("get_communities");
+      const data = await fetchApi("get_communities", undefined, skipCache);
       setCommunities(data as string[]);
       setStep("community");
     } catch (err) {
@@ -102,7 +103,7 @@ export default function SetupPage() {
                 Connected to kicktipp.com
               </div>
               {step === "connection" && (
-                <Button onClick={loadCommunities} disabled={loading} size="sm">
+                <Button onClick={() => loadCommunities()} disabled={loading} size="sm">
                   {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Continue
                   <ArrowRight className="h-4 w-4 ml-2" />
@@ -136,13 +137,38 @@ export default function SetupPage() {
                 </div>
               )}
               {communities.length === 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    No communities found. Join one on kicktipp.com first.
+                    Could not detect your communities automatically.
                   </p>
-                  <Button onClick={loadCommunities} disabled={loading} size="sm" variant="outline">
+                  <div className="space-y-2">
+                    <label htmlFor="manual-community" className="text-sm font-medium">
+                      Enter your community name
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        id="manual-community"
+                        type="text"
+                        placeholder="e.g. my-tipp-community"
+                        value={manualName}
+                        onChange={(e) => setManualName(e.target.value)}
+                        className="flex-1 h-9 px-3 rounded-xl border border-border bg-muted text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                      />
+                      <Button
+                        onClick={() => manualName.trim() && selectCommunity(manualName.trim())}
+                        disabled={loading || !manualName.trim()}
+                        size="sm"
+                      >
+                        Use
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Find it in your kicktipp URL: kicktipp.com/<strong>your-community</strong>/tippabgabe
+                    </p>
+                  </div>
+                  <Button onClick={() => loadCommunities(true)} disabled={loading} size="sm" variant="outline">
                     {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                    Retry
+                    Retry auto-detect
                   </Button>
                 </div>
               ) : (

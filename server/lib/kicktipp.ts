@@ -597,10 +597,36 @@ async function getRules(session: UserSession) {
   return sections;
 }
 
+const EXCLUDED_SLUGS = new Set([
+  "info", "profil", "login", "connexion", "impressum",
+  "datenschutz", "nutzungsbedingungen", "agb", "kontakt",
+  "hilfe", "help", "faq", "register", "inscription",
+  "anmelden", "passwort", "password", "logout",
+]);
+
 async function getCommunities(session: UserSession) {
   const $ = await fetchPage(`${getUrlBase()}/info/profil/meinetipprunden`, session);
   const links = $("#kicktipp-content a");
-  const communities: string[] = [];
+
+  // Strategy A: URL-pattern matching (robust to text/display changes)
+  const urlCommunities = new Set<string>();
+  links.each((_, el) => {
+    const href = $(el).attr("href") || "";
+    const match = href.match(/^\/([A-Za-z0-9][\w-]*)\/?/);
+    if (!match) return;
+    const slug = match[1];
+    if (EXCLUDED_SLUGS.has(slug.toLowerCase())) return;
+    if (slug.includes(".")) return;
+    urlCommunities.add(slug);
+  });
+
+  if (urlCommunities.size > 0) {
+    console.log(`[getCommunities] Found ${urlCommunities.size} via URL pattern: ${[...urlCommunities].join(", ")}`);
+    return [...urlCommunities];
+  }
+
+  // Strategy B: text-match (original logic, backward compat)
+  const textCommunities: string[] = [];
   links.each((_, el) => {
     const href = ($(el).attr("href") || "").replace(/\//g, "");
     const text = $(el).text().trim();
@@ -612,10 +638,27 @@ async function getCommunities(session: UserSession) {
       hrefNorm === textNorm ||
       (menuDiv.length && menuDiv.text().trim().toLowerCase() === href.toLowerCase())
     ) {
-      communities.push(href);
+      textCommunities.push(href);
     }
   });
-  return communities;
+
+  if (textCommunities.length > 0) {
+    console.log(`[getCommunities] Found ${textCommunities.length} via text match: ${textCommunities.join(", ")}`);
+    return textCommunities;
+  }
+
+  // Diagnostic: log what we found so failures are debuggable from server logs
+  const sample: string[] = [];
+  links.each((_, el) => {
+    if (sample.length >= 10) return false;
+    const href = $(el).attr("href") || "(no href)";
+    const text = $(el).text().trim().slice(0, 60);
+    sample.push(`href="${href}" text="${text}"`);
+  });
+  console.warn(`[getCommunities] No communities detected. ${links.length} links in #kicktipp-content:`);
+  sample.forEach(l => console.warn(`  ${l}`));
+
+  return [];
 }
 
 async function getPlayers(session: UserSession) {

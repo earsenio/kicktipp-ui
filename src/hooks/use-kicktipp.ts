@@ -54,7 +54,13 @@ export function useKicktipp<T>({
         return;
       }
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Request failed");
+      if (!res.ok) {
+        if (json.code === "NO_COMMUNITY") {
+          router.replace("/setup");
+          return;
+        }
+        throw new Error(json.error || "Request failed");
+      }
       setData(json.data as T);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
