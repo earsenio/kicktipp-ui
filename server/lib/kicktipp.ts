@@ -184,6 +184,20 @@ async function submitForm(url: string, fields: Record<string, string>, session: 
 
 // ── Parsing helpers ───────────────────────────────────────────────
 
+// Kicktipp sometimes adds columns to tables. Instead of hardcoding indices,
+// find the bet column by its content: either .nichttippbar or _heimTipp inputs.
+function findBetColIndex($: cheerio.CheerioAPI, row: cheerio.Cheerio<AnyNode>): number {
+  const cols = row.children("td");
+  let idx = -1;
+  cols.each((i, td) => {
+    if ($(td).hasClass("nichttippbar") || $(td).find('input[id$="_heimTipp"]').length) {
+      idx = i;
+      return false;
+    }
+  });
+  return idx;
+}
+
 function parseOdds($: cheerio.CheerioAPI, td: AnyNode): [string, string, string] {
   const el = $(td);
   return [
@@ -243,8 +257,11 @@ async function getTodayMatches(session: UserSession) {
   }> = [];
 
   tbody.children("tr").each((_, tr) => {
-    const cols = $(tr).children("td");
+    const row = $(tr);
+    const cols = row.children("td");
     if (cols.length < 5) return;
+    const betCol = findBetColIndex($, row);
+    if (betCol < 0) return;
     const dateText = $(cols[0]).text().trim();
     const matchDate = parseMatchDate(dateText);
     if (!matchDate || matchDate.getFullYear() !== now.getFullYear() ||
@@ -252,7 +269,7 @@ async function getTodayMatches(session: UserSession) {
 
     const home = $(cols[1]).text().trim();
     const away = $(cols[2]).text().trim();
-    const betTd = $(cols[3]);
+    const betTd = $(cols[betCol]);
     let bet: string;
     if (betTd.hasClass("nichttippbar")) {
       bet = betTd.text().trim() || "-";
@@ -270,7 +287,8 @@ async function getTodayMatches(session: UserSession) {
 
     const time = matchDate.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
     const kickoff = matchDate.toISOString();
-    const [rateHome, rateDraw, rateAway] = parseOdds($, cols[4]);
+    const oddsTd = cols[betCol + 1];
+    const [rateHome, rateDraw, rateAway] = oddsTd ? parseOdds($, oddsTd) : ["", "", ""];
     matches.push({
       time, kickoff, home, away, bet,
       odds: { home: rateHome, draw: rateDraw, away: rateAway },
@@ -307,8 +325,11 @@ async function getBets(session: UserSession, matchday?: number) {
   }> = [];
 
   tbody.children("tr").each((_, tr) => {
-    const cols = $(tr).children("td");
+    const row = $(tr);
+    const cols = row.children("td");
     if (cols.length < 5) return;
+    const betCol = findBetColIndex($, row);
+    if (betCol < 0) return;
     const rawDate = $(cols[0]).text().trim();
     const parsedDate = parseMatchDate(rawDate);
     const date = parsedDate
@@ -317,7 +338,7 @@ async function getBets(session: UserSession, matchday?: number) {
       : rawDate;
     const home = $(cols[1]).text().trim();
     const away = $(cols[2]).text().trim();
-    const betTd = $(cols[3]);
+    const betTd = $(cols[betCol]);
     let bet: string;
     if (betTd.hasClass("nichttippbar")) {
       bet = betTd.text().trim();
@@ -333,7 +354,8 @@ async function getBets(session: UserSession, matchday?: number) {
       }
     }
     const kickoff = parsedDate ? parsedDate.toISOString() : null;
-    const [rateHome, rateDraw, rateAway] = parseOdds($, cols[4]);
+    const oddsTd = cols[betCol + 1];
+    const [rateHome, rateDraw, rateAway] = oddsTd ? parseOdds($, oddsTd) : ["", "", ""];
     matches.push({ date, kickoff, home, away, bet, odds: { home: rateHome, draw: rateDraw, away: rateAway } });
   });
 
@@ -613,15 +635,6 @@ async function getBonusQuestions(session: UserSession) {
   const content = $("#kicktipp-content");
 
   let deadline: string | null = null;
-  const deadlineEl = content.find(".deadline, .hinweis, .abgabeschluss");
-  if (deadlineEl.length) {
-    const deadlineText = deadlineEl.text().trim();
-    const dateMatch = deadlineText.match(/\d{2}[.\/]\d{2}[.\/]\d{2}\s+\d{2}:\d{2}/);
-    if (dateMatch) {
-      const parsed = parseMatchDate(dateMatch[0]);
-      if (parsed) deadline = parsed.toISOString();
-    }
-  }
 
   const table = content.find("table#tippabgabeFragen");
   if (!table.length) return { questions: [], deadline };
@@ -636,8 +649,26 @@ async function getBonusQuestions(session: UserSession) {
   tbody.children("tr").each((_, tr) => {
     const cols = $(tr).children("td");
     if (cols.length < 3) return;
+
+    // Extract deadline from the first column (tipptermin) if available
+    if (!deadline) {
+      const dateText = $(cols[0]).text().trim();
+      const dateMatch = dateText.match(/\d{2}[.\/]\d{2}[.\/]\d{2}\s+\d{2}:\d{2}/);
+      if (dateMatch) {
+        const parsed = parseMatchDate(dateMatch[0]);
+        if (parsed) deadline = parsed.toISOString();
+      }
+    }
+
     const question = $(cols[1]).text().trim();
-    const selectEls = $(cols[2]).find("select");
+
+    // Find the column containing select elements (resilient to column changes)
+    let selectTd: AnyNode | null = null;
+    cols.each((__, td) => {
+      if ($(td).find("select").length) selectTd = td;
+    });
+    if (!selectTd) return;
+    const selectEls = $(selectTd).find("select");
     if (!selectEls.length) return;
     const selects: typeof questions[0]["selects"] = [];
     selectEls.each((__, sel) => {
@@ -678,9 +709,12 @@ async function placeBets(session: UserSession, bets: string[], matchday?: number
   interface EditableMatch { home: string; away: string; heimName: string; gastName: string }
   const editable: EditableMatch[] = [];
   tbody.find("tr").each((_, tr) => {
-    const cols = $(tr).find("td");
+    const row = $(tr);
+    const cols = row.children("td");
     if (cols.length < 5) return;
-    const betTd = $(cols[3]);
+    const betCol = findBetColIndex($, row);
+    if (betCol < 0) return;
+    const betTd = $(cols[betCol]);
     if (betTd.hasClass("nichttippbar")) return;
     const heimInput = betTd.find('input[id$="_heimTipp"]');
     const gastInput = betTd.find('input[id$="_gastTipp"]');
