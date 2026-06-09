@@ -18,8 +18,10 @@ import {
   BookOpen,
   Settings,
   Home,
+  LogOut,
 } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/components/auth/auth-provider";
 
 const mainTabs = [
   { href: "/", label: "Predict", icon: Clock },
@@ -39,6 +41,7 @@ const moreItems = [
 export function MobileNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const { logout } = useAuth();
 
   const isActive = (href: string) =>
     href === "/"
@@ -112,6 +115,15 @@ export function MobileNav() {
                   </div>
                 </Link>
               ))}
+              <div className="border-t border-border mt-1.5 pt-1.5">
+                <button
+                  onClick={() => { setOpen(false); logout(); }}
+                  className="flex items-center gap-3 px-3.5 py-3 rounded-2xl transition-colors text-red-500 hover:bg-red-500/10 w-full"
+                >
+                  <LogOut className="h-5 w-5 shrink-0" />
+                  <div className="text-sm font-semibold">Sign out</div>
+                </button>
+              </div>
             </div>
           </SheetContent>
         </Sheet>

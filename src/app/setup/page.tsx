@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { CheckCircle2, XCircle, Loader2, ArrowRight, RefreshCw } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, ArrowRight, RefreshCw, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/components/auth/auth-provider";
 
 type Step = "connection" | "community" | "done";
 
@@ -23,6 +24,7 @@ async function fetchApi(tool: string, args?: Record<string, unknown>, skipCache 
 
 export default function SetupPage() {
   const router = useRouter();
+  const { logout } = useAuth();
   const [step, setStep] = useState<Step>("connection");
   const [connected, setConnected] = useState<boolean | null>(null);
   const [communities, setCommunities] = useState<string[]>([]);
@@ -203,6 +205,13 @@ export default function SetupPage() {
             </div>
           )}
         </StepCard>
+      </div>
+
+      <div className="pt-4 border-t border-border">
+        <Button variant="outline" size="sm" onClick={logout} className="text-muted-foreground">
+          <LogOut className="h-4 w-4 mr-2" />
+          Sign out
+        </Button>
       </div>
     </div>
   );
