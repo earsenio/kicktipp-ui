@@ -91,7 +91,11 @@ async function autoInit(session: UserSession) {
   try {
     const status = await callTool("get_status", undefined, session) as { community: string | null };
     if (!status.community) {
-      const communities = await callTool("get_communities", undefined, session) as string[];
+      let communities: string[] = [];
+      for (let attempt = 0; attempt < 2 && !communities.length; attempt++) {
+        if (attempt > 0) console.log("[auto-init] Retrying get_communities...");
+        communities = await callTool("get_communities", undefined, session) as string[];
+      }
       console.log(`[auto-init] Found ${communities.length} communities`);
       if (communities.length > 0) {
         await callTool("set_community", { name: communities[0] }, session);
