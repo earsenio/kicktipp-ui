@@ -39,6 +39,7 @@ app.post("/api/auth/login", async (c) => {
 
   try {
     const session = await createSession(email, password);
+    await autoInit(session);
     setCookie(c, COOKIE_NAME, session.id, {
       httpOnly: true,
       sameSite: "Lax",
@@ -91,6 +92,7 @@ async function autoInit(session: UserSession) {
     const status = await callTool("get_status", undefined, session) as { community: string | null };
     if (!status.community) {
       const communities = await callTool("get_communities", undefined, session) as string[];
+      console.log(`[auto-init] Found ${communities.length} communities`);
       if (communities.length > 0) {
         await callTool("set_community", { name: communities[0] }, session);
         console.log(`[auto-init] Community set to: ${communities[0]}`);
