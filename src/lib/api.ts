@@ -28,5 +28,8 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   if (authToken) {
     headers.set("Authorization", `Bearer ${authToken}`);
   }
-  return fetch(`${API_BASE}${path}`, { ...init, headers, credentials: "include" });
+  const res = await fetch(`${API_BASE}${path}`, { ...init, headers, credentials: "include" });
+  const refreshed = res.headers.get("X-Token-Refresh");
+  if (refreshed) setAuthToken(refreshed);
+  return res;
 }

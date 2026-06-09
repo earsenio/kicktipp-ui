@@ -8,8 +8,12 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { callTool, VALID_TOOLS, SHARED_TOOLS, type ToolName, type UserSession } from "./lib/kicktipp.js";
-import { createSession, getSession, destroySession } from "./lib/session.js";
+import { callTool, loginSession, VALID_TOOLS, SHARED_TOOLS, type ToolName, type UserSession } from "./lib/kicktipp.js";
+import {
+  createToken, verifyToken, updateToken,
+  getKicktippSession, syncCookieCache, destroyKicktippSession,
+  type TokenPayload,
+} from "./lib/session.js";
 import { get, set, invalidate, cacheKey, TOOL_TTL } from "./lib/cache.js";
 
 const COOKIE_NAME = "kt-session";
@@ -20,7 +24,58 @@ const app = new Hono();
 app.use("/api/*", cors({
   origin: (origin) => origin || "*",
   credentials: true,
+  exposeHeaders: ["X-Token-Refresh"],
 }));
+
+// ── Helpers ─────────────────────────────────────────────────────
+
+function setTokenCookie(c: Context, token: string) {
+  setCookie(c, COOKIE_NAME, token, {
+    httpOnly: true,
+    sameSite: "Lax",
+    path: "/",
+    maxAge: 60 * 60 * 24,
+  });
+}
+
+async function requireSession(c: Context): Promise<{ session: UserSession; payload: TokenPayload } | null> {
+  let token: string | undefined;
+
+  const auth = c.req.header("Authorization");
+  if (auth?.startsWith("Bearer ")) {
+    token = auth.slice(7);
+  }
+  if (!token) {
+    token = getCookie(c, COOKIE_NAME);
+  }
+  if (!token) return null;
+
+  const payload = await verifyToken(token);
+  if (!payload) return null;
+
+  const session = await getKicktippSession(payload);
+  return { session, payload };
+}
+
+// Issue a new JWT if session state diverged from the token payload.
+// Sets both the httpOnly cookie and the X-Token-Refresh header so the
+// client can update its Bearer token in sessionStorage.
+async function refreshTokenIfChanged(
+  c: Context,
+  session: UserSession,
+  payload: TokenPayload
+): Promise<TokenPayload> {
+  if (session.community === payload.community && session.player === payload.player) {
+    return payload;
+  }
+  const newToken = await updateToken(payload, {
+    community: session.community,
+    player: session.player,
+  });
+  setTokenCookie(c, newToken);
+  c.header("X-Token-Refresh", newToken);
+  return { ...payload, community: session.community, player: session.player };
+}
 
 // ── Auth routes (no session required) ────────────────────────────
 
@@ -38,15 +93,26 @@ app.post("/api/auth/login", async (c) => {
   }
 
   try {
-    const session = await createSession(email, password);
+    const session: UserSession = {
+      id: email,
+      email,
+      password,
+      cookies: "",
+      loggedIn: false,
+      community: "",
+      player: "",
+      lastActive: Date.now(),
+    };
+
+    await loginSession(session);
+    syncCookieCache(session);
+
     await autoInit(session);
-    setCookie(c, COOKIE_NAME, session.id, {
-      httpOnly: true,
-      sameSite: "Lax",
-      path: "/",
-      maxAge: 60 * 60 * 24,
-    });
-    return c.json({ email: session.email, community: session.community, token: session.id });
+    syncCookieCache(session);
+
+    const token = await createToken(email, password, session.community, session.player);
+    setTokenCookie(c, token);
+    return c.json({ email: session.email, community: session.community, token });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Login failed";
     return c.json({ error: message }, 401);
@@ -54,35 +120,19 @@ app.post("/api/auth/login", async (c) => {
 });
 
 app.post("/api/auth/logout", async (c) => {
-  const session = requireSession(c);
-  if (session) {
-    destroySession(session.id);
+  const result = await requireSession(c);
+  if (result) {
+    destroyKicktippSession(result.payload.email);
     deleteCookie(c, COOKIE_NAME, { path: "/" });
   }
   return c.json({ ok: true });
 });
 
 app.get("/api/auth/me", async (c) => {
-  const session = requireSession(c);
-  if (!session) return c.json({ error: "Not authenticated" }, 401);
-  return c.json({ email: session.email, community: session.community });
+  const result = await requireSession(c);
+  if (!result) return c.json({ error: "Not authenticated" }, 401);
+  return c.json({ email: result.payload.email, community: result.payload.community });
 });
-
-// ── Auth middleware for /api/kicktipp/* ──────────────────────────
-
-// Dual auth: check Authorization header first (works cross-origin in dev),
-// fall back to httpOnly cookie (works same-origin in production).
-function requireSession(c: Context): UserSession | null {
-  const auth = c.req.header("Authorization");
-  if (auth?.startsWith("Bearer ")) {
-    const token = auth.slice(7);
-    const session = getSession(token);
-    if (session) return session;
-  }
-  const sessionId = getCookie(c, COOKIE_NAME);
-  if (!sessionId) return null;
-  return getSession(sessionId);
-}
 
 // ── Auto-init community for a session ───────────────────────────
 
@@ -114,11 +164,15 @@ app.get("/api/health", (c) => c.json({ ok: true }));
 // ── Status endpoint ─────────────────────────────────────────────
 
 app.get("/api/kicktipp/status", async (c) => {
-  const session = requireSession(c);
-  if (!session) return c.json({ error: "Not authenticated", code: "NOT_AUTHENTICATED" }, 401);
+  const result = await requireSession(c);
+  if (!result) return c.json({ error: "Not authenticated", code: "NOT_AUTHENTICATED" }, 401);
+  const { session } = result;
+  let { payload } = result;
 
   try {
     await autoInit(session);
+    syncCookieCache(session);
+    payload = await refreshTokenIfChanged(c, session, payload);
     const data = await callTool("get_status", undefined, session);
     return c.json({ data, status: "ok" });
   } catch (err) {
@@ -136,8 +190,10 @@ interface RequestBody {
 }
 
 app.post("/api/kicktipp", async (c) => {
-  const session = requireSession(c);
-  if (!session) return c.json({ error: "Not authenticated", code: "NOT_AUTHENTICATED" }, 401);
+  const result = await requireSession(c);
+  if (!result) return c.json({ error: "Not authenticated", code: "NOT_AUTHENTICATED" }, 401);
+  const { session } = result;
+  let { payload } = result;
 
   let body: RequestBody;
   try {
@@ -157,9 +213,11 @@ app.post("/api/kicktipp", async (c) => {
   }
 
   await autoInit(session);
+  syncCookieCache(session);
+  payload = await refreshTokenIfChanged(c, session, payload);
 
   // Shared tools (schedule, leaderboard, etc.) use a global cache key;
-  // per-user tools (bets, today_matches) are scoped by session ID.
+  // per-user tools (bets, today_matches) are scoped by email.
   const userId = SHARED_TOOLS.has(tool) ? undefined : session.id;
   const key = cacheKey(tool, args, userId);
   const ttl = TOOL_TTL[tool] ?? 0;
@@ -176,6 +234,7 @@ app.post("/api/kicktipp", async (c) => {
     try {
       const matchday = (args as Record<string, unknown>)?.matchday as number | undefined;
       const betsData = await callTool("get_bets", { matchday }, session) as { matches: Array<{ kickoff?: string | null }> };
+      syncCookieCache(session);
       const allLocked = betsData.matches.every((m) => m.kickoff && new Date(m.kickoff).getTime() <= Date.now());
       if (allLocked && betsData.matches.length > 0) {
         return c.json({ error: "All matches have kicked off — predictions are locked", code: "MCP_ERROR" }, 400);
@@ -188,6 +247,7 @@ app.post("/api/kicktipp", async (c) => {
   const start = Date.now();
   try {
     const data = await callTool(tool, args, session);
+    syncCookieCache(session);
     console.log(`[${tool}] ${Date.now() - start}ms`);
 
     if (ttl > 0) {
@@ -201,8 +261,14 @@ app.post("/api/kicktipp", async (c) => {
       invalidate(`${session.id}:get_bonus_questions`);
     }
 
+    // If community or player changed, issue updated JWT
+    if (tool === "set_community" || tool === "set_player") {
+      payload = await refreshTokenIfChanged(c, session, payload);
+    }
+
     return c.json({ data, cached: false, cachedAt: Date.now() });
   } catch (err) {
+    syncCookieCache(session);
     console.error(`[${tool}] FAILED ${Date.now() - start}ms:`, err instanceof Error ? err.message : err);
     const message = err instanceof Error ? err.message : "Unknown error";
     return c.json({ error: message, code: "MCP_ERROR" }, 500);
