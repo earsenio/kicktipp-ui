@@ -139,6 +139,21 @@ export interface BonusQuestionsResponse {
   deadline: string | null;
 }
 
+// ── get_matchday_predictions ──
+
+export interface PlayerPrediction {
+  name: string;
+  position: string;
+  // One entry per match of the matchday (by column order); tip "H:G" or null when hidden.
+  predictions: Array<{ tip: string | null; points: number | null }>;
+}
+
+export interface MatchdayPredictionsResponse {
+  matchday: number;
+  matches: Array<{ index: number; label: string }>;
+  players: PlayerPrediction[];
+}
+
 // ── set_community / set_player ──
 
 export interface SetResult {
@@ -202,6 +217,7 @@ export const VALID_TOOLS = [
   "get_communities",
   "get_players",
   "get_bonus_questions",
+  "get_matchday_predictions",
   "set_community",
   "set_player",
   "place_bets",

@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { cn, getMatchStatus, hasResult } from "@/lib/utils";
 import type { TodayMatch, BetMatch } from "@/lib/types";
 import { ScoreInput } from "@/components/match/score-input";
 import { CountryFlag } from "@/components/shared/country-flag";
 import { MatchCountdown } from "@/components/match/match-countdown";
+import { MatchPredictionsSheet } from "@/components/match/match-predictions-sheet";
 import { useDeadline } from "@/hooks/use-deadline";
+import { Users } from "lucide-react";
 
 type ResultType = "correct" | "tendency" | "wrong";
 
@@ -124,9 +127,13 @@ interface MatchCardBetProps {
   betState: BetState;
   onBetChange: (field: "home" | "away", value: number | null) => void;
   index: number;
+  // When provided, a finished card can open the all-players predictions sheet.
+  matchday?: number;
+  matchIndex?: number;
 }
 
-export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardBetProps) {
+export function MatchCardBet({ match, betState, onBetChange, index, matchday, matchIndex }: MatchCardBetProps) {
+  const [predictionsOpen, setPredictionsOpen] = useState(false);
   const status = getMatchStatus(match.kickoff, match.result, match.ended);
   // A match in play stays "live" even before a score appears; the numeric block only
   // renders once a real score exists.
@@ -273,6 +280,28 @@ export function MatchCardBet({ match, betState, onBetChange, index }: MatchCardB
             A {match.odds.away}
           </span>
         </div>
+      )}
+
+      {/* All-players predictions (finished matches only) */}
+      {isFinished && matchday != null && matchIndex != null && (
+        <>
+          <button
+            onClick={() => setPredictionsOpen(true)}
+            className="flex items-center justify-center gap-1.5 w-full rounded-xl py-2 text-xs font-bold text-muted-foreground bg-muted/60 hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <Users className="h-3.5 w-3.5" />
+            See all predictions
+          </button>
+          <MatchPredictionsSheet
+            open={predictionsOpen}
+            onOpenChange={setPredictionsOpen}
+            matchday={matchday}
+            matchIndex={matchIndex}
+            home={match.home}
+            away={match.away}
+            result={match.result}
+          />
+        </>
       )}
     </div>
   );

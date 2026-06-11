@@ -593,6 +593,63 @@ async function getLeaderboard(session: UserSession, matchday?: number, bonus = f
   return { title, matches, bonusQuestions, rankings };
 }
 
+// Every player's tip + points for each match of a matchday. The leaderboard ranking
+// table carries one "ereignis" column per match; each player cell holds the tip and a
+// <sub class="p"> with points, e.g. "2-0<sub>3</sub>". "---" = no/hidden tip. Column
+// order matches the matchday's match order, so the caller maps by index.
+async function getMatchdayPredictions(session: UserSession, matchday: number) {
+  const community = ensureCommunity(session);
+  const $ = await fetchPage(leaderboardUrl(community, matchday), session);
+  const table = $("#kicktipp-content table#ranking");
+
+  // ereignisN class → column index.
+  const ereignisIndex = (el: AnyNode): number => {
+    const cls = $(el).attr("class") || "";
+    const m = cls.match(/\bereignis(\d+)\b/);
+    return m ? parseInt(m[1], 10) : -1;
+  };
+
+  const matches: Array<{ index: number; label: string }> = [];
+  $(table).find("thead tr").last().find("th.ereignis").each((_, th) => {
+    const index = ereignisIndex(th);
+    if (index >= 0) matches.push({ index, label: $(th).text().replace(/\s+/g, " ").trim() });
+  });
+  matches.sort((a, b) => a.index - b.index);
+  const matchCount = matches.length;
+
+  const players: Array<{
+    name: string; position: string;
+    predictions: Array<{ tip: string | null; points: number | null }>;
+  }> = [];
+
+  $(table).find("tbody tr").each((_, tr) => {
+    const nameDiv = $(tr).find("div.mg_name");
+    if (!nameDiv.length) return;
+    const name = nameDiv.text().trim();
+    const position = $(tr).find("td.position").text().trim();
+    const predictions: Array<{ tip: string | null; points: number | null }> =
+      Array.from({ length: matchCount }, () => ({ tip: null, points: null }));
+
+    $(tr).find("td.ereignis").each((__, td) => {
+      const index = ereignisIndex(td);
+      if (index < 0 || index >= matchCount) return;
+      const cell = $(td).clone();
+      const subText = cell.find("sub").text().trim();
+      const points = /^\d+$/.test(subText) ? parseInt(subText, 10) : null;
+      cell.find("sub").remove();
+      const raw = cell.text().trim();
+      let tip: string | null = null;
+      const m = raw.match(/(\d+)\s*[-:]\s*(\d+)/);
+      if (m) tip = `${m[1]}:${m[2]}`;
+      predictions[index] = { tip, points };
+    });
+
+    players.push({ name, position, predictions });
+  });
+
+  return { matchday, matches, players };
+}
+
 async function getOverview(session: UserSession, view = "matchday-points") {
   const VIEWS: Record<string, [string, string]> = {
     "matchday-points": ["spieltagspunkte", "Matchday points"],
@@ -1017,18 +1074,20 @@ export type ToolName =
   | "get_status" | "get_today_matches" | "get_bets" | "get_schedule"
   | "get_leaderboard" | "get_overview" | "get_table" | "get_rules"
   | "get_communities" | "get_players" | "get_bonus_questions"
+  | "get_matchday_predictions"
   | "set_community" | "set_player" | "place_bets" | "place_bonus_bets";
 
 export const VALID_TOOLS: ToolName[] = [
   "get_status", "get_today_matches", "get_bets", "get_schedule",
   "get_leaderboard", "get_overview", "get_table", "get_rules",
   "get_communities", "get_players", "get_bonus_questions",
+  "get_matchday_predictions",
   "set_community", "set_player", "place_bets", "place_bonus_bets",
 ];
 
 export const SHARED_TOOLS = new Set<string>([
   "get_schedule", "get_leaderboard", "get_overview", "get_table",
-  "get_rules", "get_players",
+  "get_rules", "get_players", "get_matchday_predictions",
 ]);
 
 export async function callTool(name: string, args: Record<string, unknown> | undefined, session: UserSession): Promise<unknown> {
@@ -1044,6 +1103,7 @@ export async function callTool(name: string, args: Record<string, unknown> | und
     case "get_communities": return getCommunities(session);
     case "get_players": return getPlayers(session);
     case "get_bonus_questions": return getBonusQuestions(session);
+    case "get_matchday_predictions": return getMatchdayPredictions(session, args?.matchday as number);
     case "set_community": return setCommunity(session, args?.name as string);
     case "set_player": return setPlayer(session, args?.name as string);
     case "place_bets": return placeBets(session, args?.bets as string[], args?.matchday as number | undefined, args?.dry_run as boolean | undefined);

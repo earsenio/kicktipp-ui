@@ -16,6 +16,20 @@ export function parseScore(scoreStr: string): { home: number; away: number } | n
   return { home: parseInt(match[1], 10), away: parseInt(match[2], 10) };
 }
 
+// Grades a "H:G" tip against a "H:G" result: exact score, correct tendency
+// (winner/draw), or wrong. Returns null when either is missing/unparseable.
+export function gradeTip(
+  tip: string | null | undefined,
+  result: string | null | undefined
+): "correct" | "tendency" | "wrong" | null {
+  const t = parseScore((tip ?? "").trim());
+  const r = parseScore((result ?? "").trim());
+  if (!t || !r) return null;
+  if (t.home === r.home && t.away === r.away) return "correct";
+  if (Math.sign(t.home - t.away) === Math.sign(r.home - r.away)) return "tendency";
+  return "wrong";
+}
+
 export function isDeadlinePassed(kickoffTime: string): boolean {
   return new Date(kickoffTime).getTime() <= Date.now();
 }

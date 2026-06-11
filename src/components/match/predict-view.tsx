@@ -399,6 +399,8 @@ export function PredictView() {
                         betState={{ home: bet.home, away: bet.away, saved: bet.saved, modified }}
                         onBetChange={(field, val) => updateBet(md, i, field, val)}
                         index={startIndex + i}
+                        matchday={md}
+                        matchIndex={i}
                       />
                     </motion.div>
                   );

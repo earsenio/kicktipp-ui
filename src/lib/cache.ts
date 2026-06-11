@@ -22,6 +22,7 @@ export const TOOL_TTL: Record<string, number> = {
   get_communities: TTL.COMMUNITIES,
   get_players: TTL.PLAYERS,
   get_bonus_questions: TTL.BONUS_QUESTIONS,
+  get_matchday_predictions: TTL.LEADERBOARD,
   get_status: 0,
   set_community: 0,
   set_player: 0,

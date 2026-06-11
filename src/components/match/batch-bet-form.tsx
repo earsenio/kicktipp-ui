@@ -175,6 +175,8 @@ export function BatchBetForm({ matchday, title, matches }: BatchBetFormProps) {
                 }}
                 onBetChange={(field, val) => updateBet(i, field, val)}
                 index={i}
+                matchday={matchday}
+                matchIndex={i}
               />
             </motion.div>
           );
