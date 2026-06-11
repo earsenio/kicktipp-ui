@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { BonusQuestion, LeaderboardResponse } from "@/lib/types";
-import { LeaderboardPodium } from "@/components/leaderboard/leaderboard-table";
+import type { BonusQuestion } from "@/lib/types";
 import { toast } from "sonner";
 import { Loader2, ChevronDown, ChevronUp, Check, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -19,7 +18,6 @@ interface SelectState {
 interface Props {
   questions: BonusQuestion[];
   deadline: string | null;
-  bonusLeaderboard: LeaderboardResponse | null;
 }
 
 function StatBox({ value, label, color }: { value: string; label: string; color: string }) {
@@ -143,8 +141,7 @@ function BonusQuestionCard({
   );
 }
 
-export function BonusContent({ questions, deadline, bonusLeaderboard }: Props) {
-  const [tab, setTab] = useState<"questions" | "ranking">("questions");
+export function BonusContent({ questions, deadline }: Props) {
   const { isLocked: deadlinePassed, isApproaching: deadlineApproaching, minutesLeft } = useDeadline(deadline);
   const [origSelections] = useState<SelectState>(() => {
     const init: SelectState = {};
@@ -223,42 +220,14 @@ export function BonusContent({ questions, deadline, bonusLeaderboard }: Props) {
   return (
     <div className="flex flex-col h-full -m-4 md:-m-6">
       {/* Header */}
-      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Bonus</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {questions.length} questions
-          </p>
-        </div>
-        <div className="flex rounded-xl overflow-hidden border border-border">
-          <button
-            className={cn(
-              "px-4 py-2 text-xs font-bold transition-all",
-              tab === "questions"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            onClick={() => setTab("questions")}
-          >
-            Questions
-          </button>
-          <button
-            className={cn(
-              "px-4 py-2 text-xs font-bold transition-all",
-              tab === "ranking"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            onClick={() => setTab("ranking")}
-          >
-            Ranking
-          </button>
-        </div>
+      <div className="px-4 pt-4 pb-2">
+        <h1 className="text-2xl font-extrabold tracking-tight">Bonus</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          {questions.length} questions
+        </p>
       </div>
 
-      {tab === "questions" ? (
-        <>
-          {/* Deadline banner */}
+      {/* Deadline banner */}
           {deadlinePassed && (
             <div className="mx-4 mt-1 mb-1 px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25 flex items-center gap-2">
               <Lock className="h-4 w-4 text-red-500 shrink-0" />
@@ -329,18 +298,6 @@ export function BonusContent({ questions, deadline, bonusLeaderboard }: Props) {
               )}
             </button>
           </div>
-        </>
-      ) : (
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
-          {bonusLeaderboard ? (
-            <LeaderboardPodium rankings={bonusLeaderboard.rankings} overview={null} />
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Bonus leaderboard not available yet.
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }

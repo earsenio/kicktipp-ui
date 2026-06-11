@@ -21,6 +21,10 @@ export interface TodayMatch {
   bet: string;
   odds: { home: string; draw: string; away: string };
   needsBet: boolean;
+  // Live or final score scraped from kicktipp ("H:G"), or "-:-" when not started.
+  result: string;
+  // True once kicktipp marks the match final (final whistle), distinct from in-play.
+  ended: boolean;
 }
 
 export interface TodayMatchesResponse {
@@ -37,6 +41,10 @@ export interface BetMatch {
   away: string;
   bet: string;
   odds: { home: string; draw: string; away: string };
+  // Live or final score scraped from kicktipp ("H:G"), or "-:-" when not started.
+  result: string;
+  // True once kicktipp marks the match final (final whistle), distinct from in-play.
+  ended: boolean;
 }
 
 export interface BetsResponse {
@@ -52,6 +60,7 @@ export interface ScheduleMatch {
   home: string;
   away: string;
   result: string;
+  ended?: boolean;
 }
 
 export interface ScheduleResponse {

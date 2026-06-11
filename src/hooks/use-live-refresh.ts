@@ -4,10 +4,20 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "@/lib/api";
+import { getMatchStatus } from "@/lib/utils";
 
 const POLL_INTERVAL = 60_000;
 
-export function useLiveRefresh(tools: string[]): {
+interface LiveMatch {
+  kickoff?: string;
+  result?: string;
+  ended?: boolean;
+}
+
+export function useLiveRefresh(
+  tools: string[],
+  onData?: (tool: string, data: unknown) => void
+): {
   isLive: boolean;
   refresh: () => void;
   refreshing: boolean;
@@ -16,16 +26,22 @@ export function useLiveRefresh(tools: string[]): {
   const [refreshing, setRefreshing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toolsKey = tools.join(",");
+  // Keep the latest onData without retriggering the polling effect.
+  const onDataRef = useRef(onData);
+  useEffect(() => { onDataRef.current = onData; }, [onData]);
 
   const doRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       for (const tool of tools) {
-        await apiFetch("/api/kicktipp", {
+        const res = await apiFetch("/api/kicktipp", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tool, skipCache: true }),
         });
+        if (!res.ok) continue;
+        const json = await res.json();
+        onDataRef.current?.(tool, json.data);
       }
     } finally {
       setRefreshing(false);
@@ -46,14 +62,10 @@ export function useLiveRefresh(tools: string[]): {
         const json = await res.json();
         if (cancelled) return;
 
-        const matches = json.data?.matches ?? [];
-        const now = Date.now();
-        const hasLive = matches.some((m: { time?: string }) => {
-          if (!m.time) return false;
-          const kickoff = new Date(m.time).getTime();
-          if (isNaN(kickoff)) return false;
-          return kickoff < now && now - kickoff < 3 * 60 * 60 * 1000;
-        });
+        const matches: LiveMatch[] = json.data?.matches ?? [];
+        const hasLive = matches.some(
+          (m) => getMatchStatus(m.kickoff, m.result, m.ended) === "live"
+        );
         setIsLive(hasLive);
       } catch {
         setIsLive(false);

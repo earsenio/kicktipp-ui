@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { MatchCard } from "@/components/match/match-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import type { TodayMatchesResponse } from "@/lib/types";
@@ -14,18 +15,26 @@ interface DashboardContentProps {
 }
 
 export function DashboardContent({ matches }: DashboardContentProps) {
-  const matchList = matches?.matches ?? [];
+  // Seed from the server-rendered prop, then keep live results fresh via polling.
+  const [data, setData] = useState<TodayMatchesResponse | null>(matches);
+  const onData = useCallback((_tool: string, fresh: unknown) => {
+    if (fresh && typeof fresh === "object" && "matches" in fresh) {
+      setData(fresh as TodayMatchesResponse);
+    }
+  }, []);
+  const { refresh, refreshing } = useLiveRefresh(["get_today_matches"], onData);
+
+  const matchList = data?.matches ?? [];
   const needsBet = matchList.filter((m) => m.needsBet).length;
   const total = matchList.length;
-  const { refresh, refreshing } = useLiveRefresh(["get_today_matches"]);
 
   return (
     <div className="space-y-5 max-w-4xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">Dashboard</h1>
-          {matches?.title && (
-            <p className="text-sm text-muted-foreground mt-0.5">{matches.title}</p>
+          {data?.title && (
+            <p className="text-sm text-muted-foreground mt-0.5">{data.title}</p>
           )}
         </div>
         <button

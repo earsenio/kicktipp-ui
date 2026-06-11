@@ -207,22 +207,121 @@ function parseOdds($: cheerio.CheerioAPI, td: AnyNode): [string, string, string]
   ];
 }
 
+// Searches an entire prediction/schedule row for a result span. The result column
+// index varies between pages and kicktipp layouts (see findBetColIndex), so we search
+// the whole row rather than a hardcoded column. Returns "H:G" or "-:-" when there is no
+// valid score yet (upcoming match) or the markup is unexpected.
+function parseRowResult($: cheerio.CheerioAPI, row: cheerio.Cheerio<AnyNode>): string {
+  const span = row.find("span.kicktipp-ergebnis").first();
+  if (!span.length) return "-:-";
+  const h = span.find("span.kicktipp-heim").text().trim();
+  const g = span.find("span.kicktipp-gast").text().trim();
+  if (h === "" && g === "") {
+    // Some live layouts render the score as plain text ("1:2") inside the span.
+    const m = span.text().trim().match(/(\d+)\s*[:\-]\s*(\d+)/);
+    return m ? `${m[1]}:${m[2]}` : "-:-";
+  }
+  if (!/^\d+$/.test(h) || !/^\d+$/.test(g)) return "-:-";
+  return `${h}:${g}`;
+}
+
+// Like parseRowResult, but also reports whether the match is over. Kicktipp tags the
+// result phase on span.kicktipp-abschnitt: in-play matches carry "kicktipp-liveergebnis",
+// finished ones "kicktipp-abpfiff" (final whistle). We treat any valid score that is NOT
+// flagged live as final — this covers abpfiff plus extra-time/penalty final markers.
+function parseRowResultInfo($: cheerio.CheerioAPI, row: cheerio.Cheerio<AnyNode>): { result: string; ended: boolean } {
+  const result = parseRowResult($, row);
+  const hasScore = result !== "-:-";
+  const live = row.find("span.kicktipp-ergebnis .kicktipp-liveergebnis").length > 0;
+  return { result, ended: hasScore && !live };
+}
+
+// Extracts the user's locked tip from a non-bettable ("nichttippbar") cell without
+// conflating it with the live result, which kicktipp may render inside the same cell.
+// We deliberately ignore any heim/gast spans nested under a result span
+// (span.kicktipp-ergebnis) so the tip is never mistaken for the score.
+// NOTE: the exact markup of a locked tip cell on the prediction page is unverified
+// (no live fixture available) — verify against a real live match. The regex fallback
+// preserves prior behavior for cells that are just plain "1:2" text.
+function parseLockedTip($: cheerio.CheerioAPI, betTd: cheerio.Cheerio<AnyNode>): string {
+  const notInResult = (_: number, el: AnyNode) =>
+    $(el).closest("span.kicktipp-ergebnis").length === 0;
+  const heim = betTd.find("span.kicktipp-heim").filter(notInResult).first().text().trim();
+  const gast = betTd.find("span.kicktipp-gast").filter(notInResult).first().text().trim();
+  if (/^\d+$/.test(heim) && /^\d+$/.test(gast)) return `${heim}:${gast}`;
+  // Fallback: read the cell text with any result span removed first.
+  const clone = betTd.clone();
+  clone.find("span.kicktipp-ergebnis").remove();
+  const m = clone.text().trim().match(/(\d+)\s*[:\-]\s*(\d+)/);
+  if (m) return `${m[1]}:${m[2]}`;
+  const raw = clone.text().trim();
+  return raw || "-";
+}
+
+// Kicktipp renders match times in the site's own timezone (CET/CEST for the
+// German/French sites), NOT the server's. Interpreting them as server-local time
+// shifts kickoffs by the UTC offset difference and breaks live/upcoming detection.
+// Map the locale to its IANA zone; allow an explicit override via KICKTIPP_TZ.
+function siteTimeZone(): string {
+  if (process.env.KICKTIPP_TZ) return process.env.KICKTIPP_TZ;
+  switch (detectLocale()) {
+    case "fr": return "Europe/Paris";
+    case "de": return "Europe/Berlin";
+    default: return "Europe/Berlin"; // kicktipp is German-run; .com also shows CET
+  }
+}
+
+// Offset (ms) of `timeZone` from UTC at the given instant: tzLocal - UTC.
+function tzOffsetMs(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const p: Record<string, number> = {};
+  for (const part of dtf.formatToParts(date)) {
+    if (part.type !== "literal") p[part.type] = parseInt(part.value, 10);
+  }
+  const asUTC = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUTC - date.getTime();
+}
+
+// Convert a wall-clock time in `timeZone` to the correct UTC instant.
+function zonedWallTimeToDate(y: number, mo1: number, d: number, h: number, mi: number, timeZone: string): Date {
+  const guess = Date.UTC(y, mo1 - 1, d, h, mi);
+  let utc = guess - tzOffsetMs(new Date(guess), timeZone);
+  // Refine once to handle DST transition edges.
+  const off2 = tzOffsetMs(new Date(utc), timeZone);
+  if (guess - off2 !== utc) utc = guess - off2;
+  return new Date(utc);
+}
+
 function parseMatchDate(dateStr: string): Date | null {
   const trimmed = dateStr.trim();
+  const tz = siteTimeZone();
   const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})\s+(\d{1,2}):(\d{2})\s+(AM|PM)$/i);
   if (usMatch) {
     const [, m, d, y, h, min, ampm] = usMatch;
     let hour = parseInt(h);
     if (ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
     if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
-    return new Date(2000 + parseInt(y), parseInt(m) - 1, parseInt(d), hour, parseInt(min));
+    return zonedWallTimeToDate(2000 + parseInt(y), parseInt(m), parseInt(d), hour, parseInt(min), tz);
   }
   const euMatch = trimmed.match(/^(\d{2})[\./](\d{2})[\./](\d{2})\s+(\d{2}):(\d{2})$/);
   if (euMatch) {
     const [, d, m, y, h, min] = euMatch;
-    return new Date(2000 + parseInt(y), parseInt(m) - 1, parseInt(d), parseInt(h), parseInt(min));
+    return zonedWallTimeToDate(2000 + parseInt(y), parseInt(m), parseInt(d), parseInt(h), parseInt(min), tz);
   }
   return null;
+}
+
+// Human-friendly date label rendered in the SITE timezone, so cards show the same
+// wall-clock time as kicktipp regardless of where the server runs.
+function formatMatchDate(parsedDate: Date | null, fallback: string): string {
+  if (!parsedDate) return fallback;
+  const tz = siteTimeZone();
+  return parsedDate.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long", timeZone: tz })
+    + " · " + parsedDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz });
 }
 
 // ── Tool implementations ──────────────────────────────────────────
@@ -230,6 +329,22 @@ function parseMatchDate(dateStr: string): Date | null {
 function ensureCommunity(session: UserSession): string {
   if (!session.community) throw new Error("No community set. Call set_community first.");
   return session.community;
+}
+
+// The prediction page shows the user's tips but not the live/final score. Results
+// (incl. live, via span.kicktipp-liveergebnis) live on the schedule page, so we fetch
+// it and key the results by "home|away" for merging into bets/today's matches.
+async function getResultsMap(session: UserSession, matchday?: number): Promise<Map<string, { result: string; ended: boolean }>> {
+  const map = new Map<string, { result: string; ended: boolean }>();
+  try {
+    const schedule = await getSchedule(session, matchday);
+    for (const m of schedule.matches) {
+      if (m.result && m.result !== "-:-") map.set(`${m.home}|${m.away}`, { result: m.result, ended: m.ended });
+    }
+  } catch {
+    // Schedule unavailable — fall back to no results rather than failing the page.
+  }
+  return map;
 }
 
 async function getStatus(session: UserSession) {
@@ -250,10 +365,13 @@ async function getTodayMatches(session: UserSession) {
   const tbody = content.find("tbody");
   if (!tbody.length) return { title, matches: [] };
 
-  const now = new Date();
+  const tz = siteTimeZone();
+  const todayKey = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+  // Results (incl. live) come from the schedule page, keyed by "home|away".
+  const resultsMap = await getResultsMap(session);
   const matches: Array<{
     time: string; kickoff: string; home: string; away: string; bet: string;
-    odds: { home: string; draw: string; away: string }; needsBet: boolean;
+    odds: { home: string; draw: string; away: string }; needsBet: boolean; result: string; ended: boolean;
   }> = [];
 
   tbody.children("tr").each((_, tr) => {
@@ -264,15 +382,18 @@ async function getTodayMatches(session: UserSession) {
     if (betCol < 0) return;
     const dateText = $(cols[0]).text().trim();
     const matchDate = parseMatchDate(dateText);
-    if (!matchDate || matchDate.getFullYear() !== now.getFullYear() ||
-        matchDate.getMonth() !== now.getMonth() || matchDate.getDate() !== now.getDate()) return;
+    // Compare days in the site timezone so "today" matches what kicktipp shows.
+    if (!matchDate || matchDate.toLocaleDateString("en-CA", { timeZone: tz }) !== todayKey) return;
 
     const home = $(cols[1]).text().trim();
     const away = $(cols[2]).text().trim();
+    const info = resultsMap.get(`${home}|${away}`);
+    const result = info?.result ?? "-:-";
+    const ended = info?.ended ?? false;
     const betTd = $(cols[betCol]);
     let bet: string;
     if (betTd.hasClass("nichttippbar")) {
-      bet = betTd.text().trim() || "-";
+      bet = parseLockedTip($, betTd);
     } else {
       const heimInput = betTd.find('input[id$="_heimTipp"]');
       const gastInput = betTd.find('input[id$="_gastTipp"]');
@@ -285,14 +406,14 @@ async function getTodayMatches(session: UserSession) {
       }
     }
 
-    const time = matchDate.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const time = matchDate.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: tz });
     const kickoff = matchDate.toISOString();
     const oddsTd = cols[betCol + 1];
     const [rateHome, rateDraw, rateAway] = oddsTd ? parseOdds($, oddsTd) : ["", "", ""];
     matches.push({
       time, kickoff, home, away, bet,
       odds: { home: rateHome, draw: rateDraw, away: rateAway },
-      needsBet: !bet,
+      needsBet: !bet, result, ended,
     });
   });
 
@@ -319,9 +440,12 @@ async function getBets(session: UserSession, matchday?: number) {
   const tbody = content.find("tbody");
   if (!tbody.length) return { title, matches: [], maxMatchday };
 
+  // Results (incl. live) come from the schedule page for this matchday.
+  const resultsMap = await getResultsMap(session, matchday);
+
   const matches: Array<{
     date: string; kickoff: string | null; home: string; away: string; bet: string;
-    odds: { home: string; draw: string; away: string };
+    odds: { home: string; draw: string; away: string }; result: string; ended: boolean;
   }> = [];
 
   tbody.children("tr").each((_, tr) => {
@@ -332,16 +456,16 @@ async function getBets(session: UserSession, matchday?: number) {
     if (betCol < 0) return;
     const rawDate = $(cols[0]).text().trim();
     const parsedDate = parseMatchDate(rawDate);
-    const date = parsedDate
-      ? parsedDate.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" })
-        + " · " + parsedDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
-      : rawDate;
+    const date = formatMatchDate(parsedDate, rawDate);
     const home = $(cols[1]).text().trim();
     const away = $(cols[2]).text().trim();
+    const info = resultsMap.get(`${home}|${away}`);
+    const result = info?.result ?? "-:-";
+    const ended = info?.ended ?? false;
     const betTd = $(cols[betCol]);
     let bet: string;
     if (betTd.hasClass("nichttippbar")) {
-      bet = betTd.text().trim();
+      bet = parseLockedTip($, betTd);
     } else {
       const heimInput = betTd.find('input[id$="_heimTipp"]');
       const gastInput = betTd.find('input[id$="_gastTipp"]');
@@ -356,7 +480,7 @@ async function getBets(session: UserSession, matchday?: number) {
     const kickoff = parsedDate ? parsedDate.toISOString() : null;
     const oddsTd = cols[betCol + 1];
     const [rateHome, rateDraw, rateAway] = oddsTd ? parseOdds($, oddsTd) : ["", "", ""];
-    matches.push({ date, kickoff, home, away, bet, odds: { home: rateHome, draw: rateDraw, away: rateAway } });
+    matches.push({ date, kickoff, home, away, bet, odds: { home: rateHome, draw: rateDraw, away: rateAway }, result, ended });
   });
 
   return { title, matches, maxMatchday };
@@ -374,26 +498,18 @@ async function getSchedule(session: UserSession, matchday?: number) {
   const tbody = table.find("tbody");
   if (!tbody.length) return { title, matches: [] };
 
-  const matches: Array<{ date: string; home: string; away: string; result: string }> = [];
+  const matches: Array<{ date: string; home: string; away: string; result: string; ended: boolean }> = [];
   tbody.children("tr").each((_, tr) => {
     const cols = $(tr).children("td");
     if (cols.length < 5) return;
     const rawDate = $(cols[0]).text().trim();
     const parsedDate = parseMatchDate(rawDate);
-    const date = parsedDate
-      ? parsedDate.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" })
-        + " · " + parsedDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
-      : rawDate;
+    const date = formatMatchDate(parsedDate, rawDate);
     const home = $(cols[2]).text().trim();
     const away = $(cols[3]).text().trim();
-    const resultSpan = $(cols[4]).find("span.kicktipp-ergebnis");
-    let result: string;
-    if (resultSpan.length) {
-      result = `${resultSpan.find("span.kicktipp-heim").text().trim()}:${resultSpan.find("span.kicktipp-gast").text().trim()}`;
-    } else {
-      result = "-:-";
-    }
-    matches.push({ date, home, away, result });
+    // Result column varies by site layout, so search the whole row.
+    const { result, ended } = parseRowResultInfo($, $(tr));
+    matches.push({ date, home, away, result, ended });
   });
 
   return { title, matches };
@@ -710,22 +826,38 @@ async function getBonusQuestions(session: UserSession) {
     cols.each((__, td) => {
       if ($(td).find("select").length) selectTd = td;
     });
-    if (!selectTd) return;
-    const selectEls = $(selectTd).find("select");
-    if (!selectEls.length) return;
+
     const selects: typeof questions[0]["selects"] = [];
-    selectEls.each((__, sel) => {
-      const name = $(sel).attr("name")!;
-      const options: Array<{ value: string; text: string }> = [];
-      let selected = "-1";
-      $(sel).find("option").each((___, opt) => {
-        const value = $(opt).attr("value") || "";
-        const text = $(opt).text().trim();
-        if (value !== "-1") options.push({ value, text });
-        if ($(opt).attr("selected") !== undefined) selected = value;
+    if (selectTd) {
+      // Editable: deadline not yet passed — parse the real dropdowns.
+      $(selectTd).find("select").each((__, sel) => {
+        const name = $(sel).attr("name")!;
+        const options: Array<{ value: string; text: string }> = [];
+        let selected = "-1";
+        $(sel).find("option").each((___, opt) => {
+          const value = $(opt).attr("value") || "";
+          const text = $(opt).text().trim();
+          if (value !== "-1") options.push({ value, text });
+          if ($(opt).attr("selected") !== undefined) selected = value;
+        });
+        selects.push({ name, options, selected });
       });
-      selects.push({ name, options, selected });
-    });
+    } else {
+      // Read-only (deadline passed): kicktipp renders the user's answer(s) as
+      // <div class="nichttippbar"><div class="antwort">…</div></div>, one per pick.
+      // Synthesize a locked single-option select per answer so the UI shows it.
+      let answerTd: AnyNode | null = null;
+      cols.each((__, td) => {
+        if ($(td).find("div.antwort").length) answerTd = td;
+      });
+      if (!answerTd) return;
+      $(answerTd).find("div.antwort").each((__, d) => {
+        const text = $(d).text().trim();
+        if (text) selects.push({ name: "", options: [{ value: "0", text }], selected: "0" });
+      });
+    }
+
+    if (!selects.length) return;
     questions.push({ question, selects });
   });
 

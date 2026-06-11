@@ -1,12 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import type { LeaderboardRanking, OverviewResponse } from "@/lib/types";
+import type { LeaderboardRanking } from "@/lib/types";
 import { cn, getInitials } from "@/lib/utils";
 
 interface Props {
   rankings: LeaderboardRanking[];
-  overview: OverviewResponse | null;
 }
 
 function parseRank(pos: string): number {
@@ -116,14 +115,14 @@ function PlayerRow({
       <div className="text-right shrink-0">
         <div className="font-mono text-sm font-extrabold">{player.total}</div>
         <div className="text-xs text-muted-foreground mt-0.5">
-          {player.matchdayPoints} day · {player.bonus} bon
+          {(parseInt(player.total) || 0) - (parseInt(player.bonus) || 0)} pts + {player.bonus} bonus
         </div>
       </div>
     </motion.div>
   );
 }
 
-export function LeaderboardPodium({ rankings, overview }: Props) {
+export function LeaderboardPodium({ rankings }: Props) {
   if (rankings.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">

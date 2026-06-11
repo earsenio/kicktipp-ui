@@ -1,6 +1,6 @@
 "use client";
 
-import type { BonusQuestionsResponse, LeaderboardResponse } from "@/lib/types";
+import type { BonusQuestionsResponse } from "@/lib/types";
 import { BonusContent } from "@/components/bonus/bonus-content";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { useKicktipp } from "@/hooks/use-kicktipp";
@@ -8,10 +8,6 @@ import { useKicktipp } from "@/hooks/use-kicktipp";
 export default function BonusPage() {
   const { data: bonusData, loading, error } = useKicktipp<BonusQuestionsResponse>({
     tool: "get_bonus_questions",
-  });
-  const { data: bonusLeaderboard } = useKicktipp<LeaderboardResponse>({
-    tool: "get_leaderboard",
-    args: { bonus: true },
   });
 
   if (loading) {
@@ -32,11 +28,5 @@ export default function BonusPage() {
     );
   }
 
-  return (
-    <BonusContent
-      questions={bonusData.questions}
-      deadline={bonusData.deadline}
-      bonusLeaderboard={bonusLeaderboard}
-    />
-  );
+  return <BonusContent questions={bonusData.questions} deadline={bonusData.deadline} />;
 }

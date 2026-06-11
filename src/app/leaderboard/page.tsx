@@ -1,6 +1,6 @@
 "use client";
 
-import type { LeaderboardResponse, OverviewResponse } from "@/lib/types";
+import type { LeaderboardResponse } from "@/lib/types";
 import { LeaderboardContent } from "@/components/leaderboard/leaderboard-content";
 import { LeaderboardSkeleton } from "@/components/shared/loading-skeleton";
 import { useKicktipp } from "@/hooks/use-kicktipp";
@@ -8,9 +8,6 @@ import { useKicktipp } from "@/hooks/use-kicktipp";
 export default function LeaderboardPage() {
   const { data: leaderboard, loading, error } = useKicktipp<LeaderboardResponse>({
     tool: "get_leaderboard",
-  });
-  const { data: overview } = useKicktipp<OverviewResponse>({
-    tool: "get_overview",
   });
 
   if (loading) {
@@ -31,10 +28,5 @@ export default function LeaderboardPage() {
     );
   }
 
-  return (
-    <LeaderboardContent
-      initialData={leaderboard}
-      overview={overview}
-    />
-  );
+  return <LeaderboardContent initialData={leaderboard} />;
 }

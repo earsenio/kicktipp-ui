@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { cn, isDeadlinePassed } from "@/lib/utils";
+import { cn, isDeadlinePassed, getMatchStatus } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { MatchCardBet } from "@/components/match/match-card";
 import { MatchCardSkeletonGrid } from "@/components/shared/loading-skeleton";
@@ -177,6 +177,47 @@ export function PredictView() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [setActiveMatchday, matchdayData.size]);
+
+  // ── Live score polling ──────────────────────────────────────────────────
+  // A single 60s timer (component lifetime) refreshes any loaded matchday that
+  // contains a match currently in play. It writes ONLY the `result` field back
+  // into matchdayData — the user's editable predictions in `bets` are never
+  // touched, so unsaved scores survive a refresh. When nothing is live the tick
+  // makes zero network calls. Latest matchdayData is read from a ref so the
+  // interval can stay stable for the component's lifetime.
+  const matchdayDataRef = useRef(matchdayData);
+  useEffect(() => { matchdayDataRef.current = matchdayData; }, [matchdayData]);
+
+  useEffect(() => {
+    const tick = async () => {
+      for (const [md, data] of matchdayDataRef.current) {
+        const hasLive = data.matches.some((m) => getMatchStatus(m.kickoff, m.result, m.ended) === "live");
+        if (!hasLive) continue;
+        try {
+          const res = await apiFetch("/api/kicktipp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tool: "get_bets", args: { matchday: md }, skipCache: true }),
+          });
+          if (!res.ok) continue;
+          const json = await res.json();
+          const fresh = json.data as BetsResponse;
+          setMatchdayData((prev) => {
+            const old = prev.get(md);
+            // Bail if the matchday vanished or the row count changed (postponement
+            // etc.) so index-based merging can never misalign results with matches.
+            if (!old || old.matches.length !== fresh.matches.length) return prev;
+            const merged = old.matches.map((m, i) => ({ ...m, result: fresh.matches[i].result, ended: fresh.matches[i].ended }));
+            return new Map(prev).set(md, { ...old, matches: merged });
+          });
+        } catch {
+          // Ignore transient polling errors; the next tick retries.
+        }
+      }
+    };
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const updateBet = useCallback((md: number, index: number, field: "home" | "away", value: number | null) => {
     setBets((prev) => {
