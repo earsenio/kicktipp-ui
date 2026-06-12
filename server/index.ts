@@ -38,7 +38,9 @@ function setTokenCookie(c: Context, token: string) {
   });
 }
 
-async function requireSession(c: Context): Promise<{ session: UserSession; payload: TokenPayload } | null> {
+type VerifiedPayload = TokenPayload & { iat?: number; exp?: number };
+
+async function requireSession(c: Context): Promise<{ session: UserSession; payload: VerifiedPayload } | null> {
   let token: string | undefined;
 
   const auth = c.req.header("Authorization");
@@ -57,17 +59,22 @@ async function requireSession(c: Context): Promise<{ session: UserSession; paylo
   return { session, payload };
 }
 
-// Issue a new JWT if session state diverged from the token payload.
-// Sets both the httpOnly cookie and the X-Token-Refresh header so the
-// client can update its Bearer token in sessionStorage.
-async function refreshTokenIfChanged(
+// Rolling-session renewal: re-issue the JWT (fresh 24h expiry) when the session
+// state diverged from the token (community/player changed) OR the token is older
+// than the refresh interval, so any activity within 24h extends the window. The
+// age gate bounds re-issues to ~once/hour per active user. Sets the httpOnly
+// cookie (re-stamping maxAge) and the X-Token-Refresh header for the Bearer token.
+const REFRESH_AFTER_MS = 60 * 60 * 1000;
+
+async function maybeRefreshToken(
   c: Context,
   session: UserSession,
-  payload: TokenPayload
-): Promise<TokenPayload> {
-  if (session.community === payload.community && session.player === payload.player) {
-    return payload;
-  }
+  payload: VerifiedPayload
+): Promise<VerifiedPayload> {
+  const changed = session.community !== payload.community || session.player !== payload.player;
+  const ageMs = payload.iat ? Date.now() - payload.iat * 1000 : Infinity;
+  if (!changed && ageMs < REFRESH_AFTER_MS) return payload;
+
   const newToken = await updateToken(payload, {
     community: session.community,
     player: session.player,
@@ -131,7 +138,9 @@ app.post("/api/auth/logout", async (c) => {
 app.get("/api/auth/me", async (c) => {
   const result = await requireSession(c);
   if (!result) return c.json({ error: "Not authenticated" }, 401);
-  return c.json({ email: result.payload.email, community: result.payload.community });
+  // Slide the 24h window on each app load (gated to ~hourly inside the helper).
+  const payload = await maybeRefreshToken(c, result.session, result.payload);
+  return c.json({ email: payload.email, community: payload.community });
 });
 
 // ── Auto-init community for a session ───────────────────────────
@@ -172,7 +181,7 @@ app.get("/api/kicktipp/status", async (c) => {
   try {
     await autoInit(session);
     syncCookieCache(session);
-    payload = await refreshTokenIfChanged(c, session, payload);
+    payload = await maybeRefreshToken(c, session, payload);
     const data = await callTool("get_status", undefined, session);
     return c.json({ data, status: "ok" });
   } catch (err) {
@@ -214,7 +223,7 @@ app.post("/api/kicktipp", async (c) => {
 
   await autoInit(session);
   syncCookieCache(session);
-  payload = await refreshTokenIfChanged(c, session, payload);
+  payload = await maybeRefreshToken(c, session, payload);
 
   const NO_COMMUNITY_TOOLS = new Set(["get_communities", "get_status", "set_community"]);
   if (!session.community && !NO_COMMUNITY_TOOLS.has(tool)) {
@@ -269,7 +278,7 @@ app.post("/api/kicktipp", async (c) => {
 
     // If community or player changed, issue updated JWT
     if (tool === "set_community" || tool === "set_player") {
-      payload = await refreshTokenIfChanged(c, session, payload);
+      payload = await maybeRefreshToken(c, session, payload);
     }
 
     return c.json({ data, cached: false, cachedAt: Date.now() });

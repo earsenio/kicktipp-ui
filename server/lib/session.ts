@@ -58,12 +58,14 @@ export async function createToken(
     .encrypt(getSecret());
 }
 
-export async function verifyToken(token: string): Promise<TokenPayload | null> {
+export async function verifyToken(
+  token: string
+): Promise<(TokenPayload & { iat?: number; exp?: number }) | null> {
   try {
     const { payload } = await jwtDecrypt(token, getSecret());
-    const { email, password, community, player } = payload as JWTPayload & TokenPayload;
+    const { email, password, community, player, iat, exp } = payload as JWTPayload & TokenPayload;
     if (!email || !password) return null;
-    return { email, password, community: community || "", player: player || "" };
+    return { email, password, community: community || "", player: player || "", iat, exp };
   } catch {
     return null;
   }

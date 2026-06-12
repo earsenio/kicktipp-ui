@@ -4,7 +4,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { apiFetch, setAuthToken, getAuthToken } from "@/lib/api";
+import { apiFetch, setAuthToken } from "@/lib/api";
 
 interface AuthState {
   email: string | null;
@@ -34,13 +34,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!getAuthToken()) {
-      setLoading(false);
-      if (pathname !== "/login") router.replace("/login");
-      return;
-    }
-
     let cancelled = false;
+    // Always validate against the server: it accepts either the Bearer token
+    // (localStorage) or the httpOnly cookie, so a valid session keeps us signed
+    // in even when local storage was cleared (e.g. fresh PWA launch). apiFetch
+    // also picks up any rolling-renewal token from X-Token-Refresh.
     async function check() {
       try {
         const res = await apiFetch("/api/auth/me");
@@ -60,7 +58,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     check();
-    return () => { cancelled = true; };
+
+    // Re-validate (and slide the session) when the user returns to the app —
+    // important for installed PWAs that stay mounted across long backgrounding.
+    function onVisible() {
+      if (document.visibilityState === "visible") check();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
