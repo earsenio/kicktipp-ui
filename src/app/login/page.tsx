@@ -1,17 +1,39 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/auth-provider";
 import { apiFetch } from "@/lib/api";
 
+const REMEMBER_KEY = "kt-remember";
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
   const { onLogin } = useAuth();
+
+  // Pre-fill saved credentials when "Remember me" was used previously. Done in an
+  // effect (post-hydration) rather than a useState initializer to avoid an SSR/
+  // hydration mismatch on this statically-exported page.
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    try {
+      const saved = localStorage.getItem(REMEMBER_KEY);
+      if (saved) {
+        const { email: e, password: p } = JSON.parse(saved);
+        if (e) setEmail(e);
+        if (p) setPassword(p);
+        setRemember(true);
+      }
+    } catch {
+      // Ignore malformed storage.
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -26,6 +48,12 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Login failed");
+      // Persist (or clear) credentials only after a successful login.
+      if (remember) {
+        localStorage.setItem(REMEMBER_KEY, JSON.stringify({ email, password }));
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
       onLogin(data);
       router.replace(data.community ? "/" : "/setup");
     } catch (err) {
@@ -78,6 +106,17 @@ export default function LoginPage() {
             />
           </div>
 
+          <label htmlFor="remember" className="flex items-center gap-2.5 cursor-pointer select-none">
+            <input
+              id="remember"
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+              className="h-4 w-4 rounded border-border text-primary accent-primary focus:ring-2 focus:ring-primary cursor-pointer"
+            />
+            <span className="text-sm text-muted-foreground">Remember me on this device</span>
+          </label>
+
           {error && (
             <div className="text-sm text-red-500 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
               {error}
@@ -94,7 +133,9 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-center text-muted-foreground">
-          Your credentials are used to authenticate with kicktipp.com and are never stored on disk.
+          {remember
+            ? "Your credentials are saved in this browser only so you don't have to retype them, and used to authenticate with kicktipp.com."
+            : "Your credentials are used to authenticate with kicktipp.com and are not saved on this device."}
         </p>
         <p className="text-xs text-center text-muted-foreground">
           Don&apos;t have an account?{" "}
