@@ -5,7 +5,7 @@ import { Wifi, WifiOff, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 
-type Status = "connected" | "stale" | "error";
+type Status = "connected" | "error";
 
 export function ConnectionStatus() {
   const [status, setStatus] = useState<Status | null>(null);
@@ -27,15 +27,14 @@ export function ConnectionStatus() {
     }
   }, []);
 
+  // Verify on mount, then re-verify every 5 minutes. `check` is stable, so the
+  // effect runs once; `lastCheck` is intentionally NOT a dependency (it would
+  // retrigger the effect on every success and create a request loop).
   useEffect(() => {
     check();
-    const interval = setInterval(() => {
-      if (lastCheck && Date.now() - lastCheck > 5 * 60_000) {
-        setStatus("stale");
-      }
-    }, 30_000);
+    const interval = setInterval(check, 5 * 60_000);
     return () => clearInterval(interval);
-  }, [check, lastCheck]);
+  }, [check]);
 
   const reconnect = async () => {
     setReconnecting(true);
@@ -59,8 +58,6 @@ export function ConnectionStatus() {
       >
         {status === "connected" ? (
           <Wifi className="h-3.5 w-3.5 text-accent-green" />
-        ) : status === "stale" ? (
-          <Wifi className="h-3.5 w-3.5 text-accent-amber" />
         ) : (
           <WifiOff className="h-3.5 w-3.5 text-accent-red" />
         )}
@@ -78,7 +75,6 @@ export function ConnectionStatus() {
                 className={cn(
                   "w-2 h-2 rounded-full",
                   status === "connected" && "bg-accent-green",
-                  status === "stale" && "bg-accent-amber",
                   status === "error" && "bg-accent-red"
                 )}
               />
