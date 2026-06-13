@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, DM_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -53,6 +54,13 @@ export default function RootLayout({
             <Toaster richColors position="top-right" />
           </AuthProvider>
         </ThemeProvider>
+        {/* Umami web analytics */}
+        <Script
+          defer
+          src="https://cloud.umami.is/script.js"
+          data-website-id="992bba0c-54b1-40c3-811f-07a14e396912"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
