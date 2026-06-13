@@ -44,3 +44,8 @@ session-*.json
 
 # TypeScript build cache
 tsconfig.tsbuildinfo
+
+# Installed agent skills (npx skills)
+.agents/
+.claude/
+skills-lock.json
