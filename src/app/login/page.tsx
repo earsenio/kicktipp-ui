@@ -69,7 +69,7 @@ export default function LoginPage() {
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-extrabold tracking-tight">TippKick</h1>
           <p className="text-sm text-muted-foreground">
-            Sign in with your kicktipp.com account
+            Your Kicktipp pool, finally beautiful.
           </p>
         </div>
 
@@ -133,9 +133,10 @@ export default function LoginPage() {
         </form>
 
         <p className="text-xs text-center text-muted-foreground">
+          Sign in with your existing kicktipp.com account.{" "}
           {remember
-            ? "Your credentials are saved in this browser only so you don't have to retype them, and used to authenticate with kicktipp.com."
-            : "Your credentials are used to authenticate with kicktipp.com and are not saved on this device."}
+            ? "Credentials are saved in this browser only so you don't have to retype them."
+            : "Credentials are used to authenticate with kicktipp.com and are not saved on this device."}
         </p>
         <p className="text-xs text-center text-muted-foreground">
           Don&apos;t have an account?{" "}
