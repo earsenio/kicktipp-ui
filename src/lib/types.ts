@@ -59,6 +59,7 @@ export interface BetsResponse {
 
 export interface ScheduleMatch {
   date: string;
+  kickoff?: string | null;
   home: string;
   away: string;
   result: string;

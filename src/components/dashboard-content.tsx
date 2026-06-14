@@ -51,8 +51,8 @@ export function DashboardContent({ matches }: DashboardContentProps) {
         <EmptyState
           page="dashboard"
           title="No matches today"
-          description="There are no matches scheduled for today. Check back later or browse the full schedule."
-          action={{ label: "View Schedule", href: "/schedule" }}
+          description="There are no matches scheduled for today. Check back later or head to your predictions."
+          action={{ label: "View Predictions", href: "/" }}
         />
       ) : needsBet === 0 ? (
         <div className="rounded-2xl bg-green-500/10 border-[1.5px] border-green-500/30 p-4 text-sm text-green-600 dark:text-green-400 font-semibold">

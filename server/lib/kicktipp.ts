@@ -508,18 +508,19 @@ async function getSchedule(session: UserSession, matchday?: number) {
   const tbody = table.find("tbody");
   if (!tbody.length) return { title, matches: [] };
 
-  const matches: Array<{ date: string; home: string; away: string; result: string; ended: boolean }> = [];
+  const matches: Array<{ date: string; kickoff: string | null; home: string; away: string; result: string; ended: boolean }> = [];
   tbody.children("tr").each((_, tr) => {
     const cols = $(tr).children("td");
     if (cols.length < 5) return;
     const rawDate = $(cols[0]).text().trim();
     const parsedDate = parseMatchDate(rawDate);
     const date = formatMatchDate(parsedDate, rawDate);
+    const kickoff = parsedDate ? parsedDate.toISOString() : null;
     const home = $(cols[2]).text().trim();
     const away = $(cols[3]).text().trim();
     // Result column varies by site layout, so search the whole row.
     const { result, ended } = parseRowResultInfo($, $(tr));
-    matches.push({ date, home, away, result, ended });
+    matches.push({ date, kickoff, home, away, result, ended });
   });
 
   return { title, matches };

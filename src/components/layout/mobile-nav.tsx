@@ -12,7 +12,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import {
-  Calendar,
   BarChart3,
   Users,
   BookOpen,
@@ -31,7 +30,6 @@ const mainTabs = [
 ];
 
 const moreItems = [
-  { href: "/schedule", label: "Schedule", icon: Calendar },
   { href: "/overview", label: "Overview", icon: BarChart3 },
   { href: "/players", label: "Players", icon: Users },
   { href: "/rules", label: "Rules", icon: BookOpen },

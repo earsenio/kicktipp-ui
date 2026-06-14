@@ -9,7 +9,6 @@ const ROUTES: Record<string, string> = {
   d: "/",
   m: "/matchday/1",
   l: "/leaderboard",
-  s: "/schedule",
   o: "/overview",
   b: "/bonus",
   p: "/players",
