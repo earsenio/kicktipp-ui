@@ -32,16 +32,24 @@ export function PredictView() {
   const [submitting, setSubmitting] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [initialError, setInitialError] = useState<string | null>(null);
+  // After the initial matchday loads, scroll to its next predictable game.
+  const [pendingScrollMd, setPendingScrollMd] = useState<number | null>(null);
 
   const loadedRef = useRef<Set<number>>(new Set());
   const loadingRef = useRef(false);
   const maxMdRef = useRef(34);
   const sectionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const matchRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const didInitRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const fetchMatchday = useCallback(async (md: number) => {
-    if (loadedRef.current.has(md) || loadingRef.current) return;
-    if (md > maxMdRef.current) return;
+  // Loads a matchday's bets. With no `md`, fetches the kicktipp default page (the
+  // current matchday) and keys the result by the `currentMatchday` it reports.
+  // Returns the resolved matchday number (or null on failure).
+  const fetchMatchday = useCallback(async (md?: number): Promise<number | null> => {
+    if (md != null && loadedRef.current.has(md)) return md;
+    if (md != null && md > maxMdRef.current) return null;
+    if (loadingRef.current) return null;
 
     loadingRef.current = true;
     setLoadingNext(true);
@@ -49,20 +57,22 @@ export function PredictView() {
       const res = await apiFetch("/api/kicktipp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tool: "get_bets", args: { matchday: md } }),
+        body: JSON.stringify({ tool: "get_bets", args: md != null ? { matchday: md } : undefined }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Request failed");
 
       const data = json.data as BetsResponse;
+      const resolvedMd = md ?? data.currentMatchday ?? 1;
 
       if (data.maxMatchday && data.maxMatchday > 0) {
         maxMdRef.current = data.maxMatchday;
         setMaxMatchday(data.maxMatchday);
       }
 
-      loadedRef.current.add(md);
-      setMatchdayData((prev) => new Map(prev).set(md, data));
+      if (loadedRef.current.has(resolvedMd)) return resolvedMd;
+      loadedRef.current.add(resolvedMd);
+      setMatchdayData((prev) => new Map(prev).set(resolvedMd, data));
 
       const initial: Record<number, BetState> = {};
       data.matches.forEach((match, i) => {
@@ -75,23 +85,58 @@ export function PredictView() {
           saved: false,
         };
       });
-      setBets((prev) => new Map(prev).set(md, initial));
+      setBets((prev) => new Map(prev).set(resolvedMd, initial));
+      return resolvedMd;
     } catch (err) {
-      if (md === 1) {
+      if (md == null || md === 1) {
         setInitialError(err instanceof Error ? err.message : "Failed to load");
       }
+      return null;
     } finally {
       loadingRef.current = false;
       setLoadingNext(false);
     }
   }, [setMaxMatchday]);
 
-  // Load MD 1 on mount + enable pills in header
+  // On mount: enable pills and open on the current matchday, then scroll to its
+  // next predictable game (handled by the pendingScroll effect below).
   useEffect(() => {
     setShowPills(true);
-    fetchMatchday(1);
+    if (!didInitRef.current) {
+      didInitRef.current = true;
+      (async () => {
+        const md = await fetchMatchday();
+        if (md != null) {
+          setActiveMatchday(md);
+          setPendingScrollMd(md);
+        }
+      })();
+    }
     return () => setShowPills(false);
-  }, [setShowPills, fetchMatchday]);
+  }, [setShowPills, fetchMatchday, setActiveMatchday]);
+
+  // Once the initial matchday's data has rendered, scroll to the next predictable
+  // game (earliest "upcoming" match); fall back to the matchday section header.
+  useEffect(() => {
+    if (pendingScrollMd == null) return;
+    const data = matchdayData.get(pendingScrollMd);
+    if (!data) return;
+    const idx = data.matches.findIndex(
+      (m) => getMatchStatus(m.kickoff, m.result, m.ended) === "upcoming"
+    );
+    const raf = requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const matchEl = idx >= 0 ? matchRefs.current.get(`${pendingScrollMd}-${idx}`) : null;
+        if (matchEl) {
+          matchEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+          sectionRefs.current.get(pendingScrollMd)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        setPendingScrollMd(null);
+      })
+    );
+    return () => cancelAnimationFrame(raf);
+  }, [pendingScrollMd, matchdayData]);
 
   // Register pill click handler
   useEffect(() => {
@@ -102,19 +147,14 @@ export function PredictView() {
         el.scrollIntoView({ behavior: "smooth", block: "start" });
         return;
       }
-      // Load up to that matchday, then scroll
-      const loadAndScroll = async () => {
-        const loaded = Array.from(loadedRef.current);
-        const maxLoaded = loaded.length ? Math.max(...loaded) : 0;
-        for (let i = maxLoaded + 1; i <= md; i++) {
-          await fetchMatchday(i);
-        }
+      // Load just that matchday (works in both directions since we may start
+      // mid-season), then scroll once it has rendered.
+      (async () => {
+        await fetchMatchday(md);
         requestAnimationFrame(() => {
-          const target = sectionRefs.current.get(md);
-          target?.scrollIntoView({ behavior: "smooth", block: "start" });
+          sectionRefs.current.get(md)?.scrollIntoView({ behavior: "smooth", block: "start" });
         });
-      };
-      loadAndScroll();
+      })();
     };
     setOnPillClick(() => handler);
     return () => setOnPillClick(null);
@@ -390,6 +430,7 @@ export function PredictView() {
                   return (
                     <motion.div
                       key={`${md}-${match.home}-${match.away}-${i}`}
+                      ref={(el) => { if (el) matchRefs.current.set(`${md}-${i}`, el); }}
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.03, duration: 0.25 }}

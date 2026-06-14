@@ -51,6 +51,8 @@ export interface BetsResponse {
   title: string;
   matches: BetMatch[];
   maxMatchday: number;
+  // The matchday kicktipp marks active on the no-arg predict page (the current one).
+  currentMatchday?: number | null;
 }
 
 // ── get_schedule ──

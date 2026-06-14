@@ -25,12 +25,12 @@ import { useAuth } from "@/components/auth/auth-provider";
 
 const mainTabs = [
   { href: "/", label: "Predict", icon: Clock },
+  { href: "/dashboard", label: "Today", icon: Home },
   { href: "/leaderboard", label: "Board", icon: Trophy },
   { href: "/bonus", label: "Bonus", icon: Star },
 ];
 
 const moreItems = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
   { href: "/schedule", label: "Schedule", icon: Calendar },
   { href: "/overview", label: "Overview", icon: BarChart3 },
   { href: "/players", label: "Players", icon: Users },

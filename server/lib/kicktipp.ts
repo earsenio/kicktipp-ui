@@ -437,8 +437,18 @@ async function getBets(session: UserSession, matchday?: number) {
     if (max > 0) maxMatchday = max;
   }
 
+  // The matchday tab kicktipp marks active (parent class "level0 active-true") is the
+  // current one. Meaningful when no spieltagIndex is requested; lets the UI open there.
+  let currentMatchday: number | null = null;
+  const active = spieltagLinks.filter((_, el) => {
+    const p = $(el).parent();
+    return p.hasClass("level0") && p.hasClass("active-true") && !p.hasClass("bonusoption");
+  }).first();
+  const am = active.attr("href")?.match(/spieltagIndex=(\d+)/);
+  if (am) currentMatchday = parseInt(am[1], 10);
+
   const tbody = content.find("tbody");
-  if (!tbody.length) return { title, matches: [], maxMatchday };
+  if (!tbody.length) return { title, matches: [], maxMatchday, currentMatchday };
 
   // Results (incl. live) come from the schedule page for this matchday.
   const resultsMap = await getResultsMap(session, matchday);
@@ -483,7 +493,7 @@ async function getBets(session: UserSession, matchday?: number) {
     matches.push({ date, kickoff, home, away, bet, odds: { home: rateHome, draw: rateDraw, away: rateAway }, result, ended });
   });
 
-  return { title, matches, maxMatchday };
+  return { title, matches, maxMatchday, currentMatchday };
 }
 
 async function getSchedule(session: UserSession, matchday?: number) {
