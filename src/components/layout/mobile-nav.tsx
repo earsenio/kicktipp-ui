@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/components/auth/auth-provider";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 const mainTabs = [
   { href: "/", label: "Predict", icon: Clock },
@@ -113,6 +114,7 @@ export function MobileNav() {
                   </div>
                 </Link>
               ))}
+              <ThemeToggle variant="row" />
               <div className="border-t border-border mt-1.5 pt-1.5">
                 <button
                   onClick={() => { setOpen(false); logout(); }}

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useState } from "react";
 
 const navItems = [
@@ -79,7 +80,10 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="border-t border-border p-2">
+      <div className="border-t border-border p-2 space-y-0.5">
+        <div className={cn("px-2 py-1", collapsed ? "flex justify-center" : "")}>
+          <ThemeToggle />
+        </div>
         <Link
           href="/setup"
           className={cn(

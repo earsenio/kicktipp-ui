@@ -1,19 +1,17 @@
 "use client";
 
-import { useTheme } from "next-themes";
-import { Moon, Sun, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { ConnectionStatus } from "@/components/layout/connection-status";
+import { ShareButton } from "@/components/layout/share-button";
 import { LiveBadge } from "@/components/layout/live-badge";
 import { useLiveRefresh } from "@/hooks/use-live-refresh";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import { useEffect, useState, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { MatchdayPills } from "@/components/shared/matchday-pills";
 import { useMatchdayContext } from "@/components/match/matchday-context";
 import { useAuth } from "@/components/auth/auth-provider";
 
 export function Header() {
-  const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { isLive } = useLiveRefresh([]);
   const { showPills, activeMatchday, maxMatchday, onPillClick } = useMatchdayContext();
@@ -90,37 +88,7 @@ export function Header() {
             </div>
           )}
           <ConnectionStatus />
-          {mounted && (
-            <button
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="h-9 w-9 rounded-full bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
-              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                {theme === "dark" ? (
-                  <motion.span
-                    key="sun"
-                    initial={{ rotate: -90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: 90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Sun className="h-4 w-4" />
-                  </motion.span>
-                ) : (
-                  <motion.span
-                    key="moon"
-                    initial={{ rotate: 90, opacity: 0 }}
-                    animate={{ rotate: 0, opacity: 1 }}
-                    exit={{ rotate: -90, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <Moon className="h-4 w-4" />
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </button>
-          )}
+          <ShareButton />
         </div>
       </div>
 
