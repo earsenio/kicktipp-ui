@@ -282,8 +282,8 @@ export function MatchCardBet({ match, betState, onBetChange, index, matchday, ma
         </div>
       )}
 
-      {/* All-players predictions (finished matches only) */}
-      {isFinished && matchday != null && matchIndex != null && (
+      {/* All-players predictions — visible once tips go public (kickoff), i.e. live or finished */}
+      {(isFinished || isLive) && matchday != null && matchIndex != null && (
         <>
           <button
             onClick={() => setPredictionsOpen(true)}

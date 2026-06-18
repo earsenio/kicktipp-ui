@@ -18,6 +18,7 @@ export const TOOL_TTL: Record<string, number> = {
   get_bets: TTL.BETS,
   get_schedule: TTL.SCHEDULE,
   get_leaderboard: TTL.LEADERBOARD,
+  get_matchday_predictions: TTL.LEADERBOARD,
   get_overview: TTL.OVERVIEW,
   get_rules: TTL.RULES,
   get_communities: TTL.COMMUNITIES,
