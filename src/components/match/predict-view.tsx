@@ -3,7 +3,7 @@
 // and batches all modified bets into a single submit action per matchday.
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { cn, isDeadlinePassed, getMatchStatus } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
@@ -28,6 +28,9 @@ export function PredictView() {
 
   const [matchdayData, setMatchdayData] = useState<Map<number, BetsResponse>>(new Map());
   const [loadingNext, setLoadingNext] = useState(false);
+  // True while the in-flight load is an upward (previous matchday) load, so we can
+  // show the loading skeleton above the list instead of below it.
+  const [loadingPrev, setLoadingPrev] = useState(false);
   const [bets, setBets] = useState<Map<number, Record<number, BetState>>>(new Map());
   const [submitting, setSubmitting] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
@@ -42,6 +45,16 @@ export function PredictView() {
   const matchRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const didInitRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  // Set once the initial scroll-to-current-matchday settles, so the top sentinel
+  // doesn't auto-load earlier matchdays during the mount/scroll window. State (not
+  // a ref) so flipping it re-attaches the top observer, forcing it to re-evaluate
+  // the sentinel's current visibility — needed when the page opens clamped at the
+  // top (the sentinel is already in view and would never emit a fresh event).
+  const [allowPrevLoad, setAllowPrevLoad] = useState(false);
+  // Captured before a previous-matchday prepend so we can re-anchor the viewport
+  // to the section that was first on screen (avoids a content jump).
+  const prevAnchorRef = useRef<{ md: number; top: number } | null>(null);
 
   // Loads a matchday's bets. With no `md`, fetches the kicktipp default page (the
   // current matchday) and keys the result by the `currentMatchday` it reports.
@@ -95,6 +108,9 @@ export function PredictView() {
     } finally {
       loadingRef.current = false;
       setLoadingNext(false);
+      // Always clear the upward-load flag when any fetch settles; it's only ever
+      // set during a previous-matchday load, so this is a no-op otherwise.
+      setLoadingPrev(false);
     }
   }, [setMaxMatchday]);
 
@@ -133,6 +149,8 @@ export function PredictView() {
           sectionRefs.current.get(pendingScrollMd)?.scrollIntoView({ behavior: "smooth", block: "start" });
         }
         setPendingScrollMd(null);
+        // Initial scroll done — now allow scroll-up to load earlier matchdays.
+        setAllowPrevLoad(true);
       })
     );
     return () => cancelAnimationFrame(raf);
@@ -182,6 +200,51 @@ export function PredictView() {
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [fetchMatchday, matchdayData.size]);
+
+  // Infinite scroll (upward): load the previous matchday when the top sentinel
+  // enters view. Gated until the initial scroll settles so we don't auto-load
+  // earlier matchdays on mount. Before fetching we capture the first section's
+  // on-screen position so the anchoring effect below can keep the view stable.
+  useEffect(() => {
+    const sentinel = topSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0].isIntersecting) return;
+        if (!allowPrevLoad) return;
+        const loaded = Array.from(loadedRef.current);
+        const minLoaded = loaded.length ? Math.min(...loaded) : 1;
+        if (minLoaded <= 1) return;
+        const anchorEl = sectionRefs.current.get(minLoaded);
+        if (anchorEl) {
+          prevAnchorRef.current = { md: minLoaded, top: anchorEl.getBoundingClientRect().top };
+        }
+        setLoadingPrev(true);
+        fetchMatchday(minLoaded - 1);
+      },
+      { rootMargin: "400px 0px 0px 0px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [fetchMatchday, matchdayData.size, allowPrevLoad]);
+
+  // While an upward load is in progress, keep the viewport pinned to the section
+  // that was first on screen when the load began. This runs before paint on every
+  // layout change in the sequence — the top skeleton appearing, the previous
+  // matchday prepending, and the skeleton disappearing — so none of them push the
+  // view down. We hold the anchor until the load settles, then release it.
+  useLayoutEffect(() => {
+    const anchor = prevAnchorRef.current;
+    if (!anchor) return;
+    const el = sectionRefs.current.get(anchor.md);
+    if (el) {
+      const delta = el.getBoundingClientRect().top - anchor.top;
+      if (delta !== 0) window.scrollBy({ top: delta, behavior: "instant" });
+    }
+    if (!loadingPrev) prevAnchorRef.current = null;
+  }, [matchdayData, loadingPrev]);
 
   // Track which section is in view to highlight the active matchday pill.
   // rootMargin -30%/-70% means "active" = the section crossing the top 30% of the viewport.
@@ -402,6 +465,15 @@ export function PredictView() {
 
       {/* Matchday sections */}
       <div className="px-4 pb-28 md:pb-20">
+        {/* Sentinel for infinite scroll upward (load previous matchday) */}
+        <div ref={topSentinelRef} className="h-1" />
+
+        {loadingPrev && (
+          <div className="py-4">
+            <MatchCardSkeletonGrid count={3} />
+          </div>
+        )}
+
         {loadedMatchdays.map((md) => {
           const data = matchdayData.get(md)!;
           const mdBets = bets.get(md) || {};
