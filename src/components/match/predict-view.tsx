@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import type { BetsResponse } from "@/lib/types";
 import { parseScore } from "@/lib/utils";
 import { useMatchdayContext } from "@/components/match/matchday-context";
+import Link from "next/link";
 
 interface BetState {
   home: number | null;
@@ -23,10 +24,20 @@ interface BetState {
   saved: boolean;
 }
 
-export function PredictView() {
+interface PredictViewProps {
+  // Today mode: reuse the Predict view but show only games happening today
+  // (still fully editable). Disables the season-scroll machinery and pills.
+  todayOnly?: boolean;
+}
+
+export function PredictView({ todayOnly = false }: PredictViewProps) {
   const { setShowPills, setActiveMatchday, setMaxMatchday, setOnPillClick } = useMatchdayContext();
 
   const [matchdayData, setMatchdayData] = useState<Map<number, BetsResponse>>(new Map());
+  // In today mode, the set of "home|away" keys for matches happening today, from
+  // get_today_matches (keeps the site-timezone "today" logic server-side). null
+  // until loaded so we can distinguish "loading" from "no games today".
+  const [todayKeys, setTodayKeys] = useState<Set<string> | null>(null);
   const [loadingNext, setLoadingNext] = useState(false);
   // True while the in-flight load is an upward (previous matchday) load, so we can
   // show the loading skeleton above the list instead of below it.
@@ -114,22 +125,44 @@ export function PredictView() {
     }
   }, [setMaxMatchday]);
 
-  // On mount: enable pills and open on the current matchday, then scroll to its
-  // next predictable game (handled by the pendingScroll effect below).
+  // Today mode: load the set of matches happening today (by "home|away" key) so we
+  // can filter the current matchday's matches down to today's games.
   useEffect(() => {
-    setShowPills(true);
+    if (!todayOnly) return;
+    (async () => {
+      try {
+        const res = await apiFetch("/api/kicktipp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tool: "get_today_matches" }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Request failed");
+        const data = json.data as { matches: Array<{ home: string; away: string }> };
+        setTodayKeys(new Set(data.matches.map((m) => `${m.home}|${m.away}`)));
+      } catch {
+        setTodayKeys(new Set());
+      }
+    })();
+  }, [todayOnly]);
+
+  // On mount: enable pills and open on the current matchday, then scroll to its
+  // next predictable game (handled by the pendingScroll effect below). In today
+  // mode we skip pills and the scroll-to-upcoming (the list is a single filtered day).
+  useEffect(() => {
+    if (!todayOnly) setShowPills(true);
     if (!didInitRef.current) {
       didInitRef.current = true;
       (async () => {
         const md = await fetchMatchday();
         if (md != null) {
           setActiveMatchday(md);
-          setPendingScrollMd(md);
+          if (!todayOnly) setPendingScrollMd(md);
         }
       })();
     }
     return () => setShowPills(false);
-  }, [setShowPills, fetchMatchday, setActiveMatchday]);
+  }, [setShowPills, fetchMatchday, setActiveMatchday, todayOnly]);
 
   // Once the initial matchday's data has rendered, scroll to the next predictable
   // game (earliest "upcoming" match); fall back to the matchday section header.
@@ -156,8 +189,9 @@ export function PredictView() {
     return () => cancelAnimationFrame(raf);
   }, [pendingScrollMd, matchdayData]);
 
-  // Register pill click handler
+  // Register pill click handler (no pills in today mode)
   useEffect(() => {
+    if (todayOnly) return;
     const handler = (md: number) => {
       setActiveMatchday(md);
       const el = sectionRefs.current.get(md);
@@ -176,11 +210,13 @@ export function PredictView() {
     };
     setOnPillClick(() => handler);
     return () => setOnPillClick(null);
-  }, [setOnPillClick, setActiveMatchday, fetchMatchday]);
+  }, [setOnPillClick, setActiveMatchday, fetchMatchday, todayOnly]);
 
   // Infinite scroll: load the next matchday when the sentinel enters the viewport
-  // (300px early, so content loads before the user reaches the bottom).
+  // (300px early, so content loads before the user reaches the bottom). Disabled in
+  // today mode (single filtered day, no season scrolling).
   useEffect(() => {
+    if (todayOnly) return;
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
 
@@ -199,13 +235,15 @@ export function PredictView() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [fetchMatchday, matchdayData.size]);
+  }, [fetchMatchday, matchdayData.size, todayOnly]);
 
   // Infinite scroll (upward): load the previous matchday when the top sentinel
   // enters view. Gated until the initial scroll settles so we don't auto-load
   // earlier matchdays on mount. Before fetching we capture the first section's
   // on-screen position so the anchoring effect below can keep the view stable.
+  // Disabled in today mode.
   useEffect(() => {
+    if (todayOnly) return;
     const sentinel = topSentinelRef.current;
     if (!sentinel) return;
 
@@ -228,7 +266,7 @@ export function PredictView() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [fetchMatchday, matchdayData.size, allowPrevLoad]);
+  }, [fetchMatchday, matchdayData.size, allowPrevLoad, todayOnly]);
 
   // While an upward load is in progress, keep the viewport pinned to the section
   // that was first on screen when the load began. This runs before paint on every
@@ -248,7 +286,9 @@ export function PredictView() {
 
   // Track which section is in view to highlight the active matchday pill.
   // rootMargin -30%/-70% means "active" = the section crossing the top 30% of the viewport.
+  // No pills in today mode, so skip.
   useEffect(() => {
+    if (todayOnly) return;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -265,11 +305,12 @@ export function PredictView() {
       observer.observe(el);
     }
     return () => observer.disconnect();
-  }, [setActiveMatchday, matchdayData.size]);
+  }, [setActiveMatchday, matchdayData.size, todayOnly]);
 
   // MD 1's section header sits above the IntersectionObserver's trigger zone,
   // so scrolling back to the top never fires an intersection for it.
   useEffect(() => {
+    if (todayOnly) return;
     const onScroll = () => {
       if (window.scrollY < 150) {
         const keys = Array.from(matchdayData.keys());
@@ -279,7 +320,7 @@ export function PredictView() {
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, [setActiveMatchday, matchdayData.size]);
+  }, [setActiveMatchday, matchdayData.size, todayOnly]);
 
   // ── Live score polling ──────────────────────────────────────────────────
   // A single 60s timer (component lifetime) refreshes any loaded matchday that
@@ -440,7 +481,8 @@ export function PredictView() {
     );
   }
 
-  if (loadedMatchdays.length === 0) {
+  // In today mode we also need the today set before we can render the filtered list.
+  if (loadedMatchdays.length === 0 || (todayOnly && todayKeys === null)) {
     return (
       <div className="space-y-4 max-w-4xl mx-auto">
         <div className="h-8 w-48 bg-muted rounded animate-pulse" />
@@ -449,22 +491,63 @@ export function PredictView() {
     );
   }
 
+  // Today mode: a match is shown only if it kicks off today (by "home|away" key).
+  const isTodayMatch = (m: { home: string; away: string }) =>
+    !todayOnly || (todayKeys?.has(`${m.home}|${m.away}`) ?? false);
+
+  // Today mode has no games today → friendly empty state.
+  if (
+    todayOnly &&
+    !loadedMatchdays.some((md) => matchdayData.get(md)!.matches.some(isTodayMatch))
+  ) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center max-w-4xl mx-auto">
+        <h2 className="text-lg font-bold mb-2">No matches today</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          There are no matches scheduled for today. Head to your predictions.
+        </p>
+        <Link
+          href="/predict"
+          className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium"
+        >
+          View Predictions
+        </Link>
+      </div>
+    );
+  }
+
+  // Count missing predictions among the matches actually shown.
+  const shownMissingCount = todayOnly
+    ? loadedMatchdays.reduce((acc, md) => {
+        const mdBets = bets.get(md) || {};
+        return (
+          acc +
+          matchdayData.get(md)!.matches.filter((m, i) => {
+            const bet = mdBets[i];
+            return isTodayMatch(m) && bet && (bet.home === null || bet.away === null);
+          }).length
+        );
+      }, 0)
+    : missingCount;
+
   let globalIndex = 0;
 
   return (
     <div className="-m-4 md:-m-6">
       {/* Header */}
       <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold tracking-tight">Predictions</h1>
-        {missingCount > 0 && (
+        <h1 className="text-2xl font-extrabold tracking-tight">
+          {todayOnly ? "Today" : "Predictions"}
+        </h1>
+        {shownMissingCount > 0 && (
           <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
-            {missingCount} missing
+            {shownMissingCount} missing
           </span>
         )}
       </div>
 
-      {/* Matchday sections */}
-      <div className="px-4 pb-28 md:pb-20">
+      {/* Matchday sections (bottom padding clears the submit bar + tab bar) */}
+      <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+8.5rem)] md:pb-20">
         {/* Sentinel for infinite scroll upward (load previous matchday) */}
         <div ref={topSentinelRef} className="h-1" />
 
@@ -482,21 +565,24 @@ export function PredictView() {
 
           return (
             <div key={md} className="mb-6">
-              <div
-                ref={(el) => { if (el) sectionRefs.current.set(md, el); }}
-                data-matchday={md}
-                className="scroll-mt-[120px] py-3 flex items-center gap-3"
-              >
-                <span className="text-sm font-bold text-primary uppercase tracking-wider">
-                  MD {md}
-                </span>
-                <span className="text-sm text-muted-foreground">{data.title}</span>
-              </div>
+              {!todayOnly && (
+                <div
+                  ref={(el) => { if (el) sectionRefs.current.set(md, el); }}
+                  data-matchday={md}
+                  className="scroll-mt-[120px] py-3 flex items-center gap-3"
+                >
+                  <span className="text-sm font-bold text-primary uppercase tracking-wider">
+                    MD {md}
+                  </span>
+                  <span className="text-sm text-muted-foreground">{data.title}</span>
+                </div>
+              )}
 
               <div className="flex flex-col gap-2.5">
                 {data.matches.map((match, i) => {
                   const bet = mdBets[i];
                   if (!bet) return null;
+                  if (!isTodayMatch(match)) return null;
                   const modified = bet.home !== bet.originalHome || bet.away !== bet.originalAway;
 
                   return (
@@ -533,8 +619,8 @@ export function PredictView() {
         <div ref={sentinelRef} className="h-1" />
       </div>
 
-      {/* Floating submit bar */}
-      <div className="fixed bottom-[calc(52px+env(safe-area-inset-bottom))] md:bottom-0 left-0 right-0 md:left-56 z-40 px-4 py-2.5 glass-nav border-t border-border">
+      {/* Floating submit bar — sits flush on top of the mobile tab bar (row 52px + its 0.5rem bottom padding) */}
+      <div className="fixed bottom-[calc(52px+env(safe-area-inset-bottom)+0.5rem)] md:bottom-0 left-0 right-0 md:left-56 z-40 px-4 py-2.5 glass-nav border-t border-border">
         <button
           onClick={handleSubmit}
           disabled={pendingCount === 0 && !submitting}

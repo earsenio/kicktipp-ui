@@ -20,8 +20,8 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useState } from "react";
 
 const navItems = [
-  { href: "/", label: "Predict", icon: Goal },
-  { href: "/dashboard", label: "Today", icon: Home },
+  { href: "/", label: "Today", icon: Home },
+  { href: "/predict", label: "Predict", icon: Goal },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/overview", label: "Overview", icon: BarChart3 },
   { href: "/bonus", label: "Bonus", icon: Star },
@@ -58,8 +58,10 @@ export function Sidebar() {
         {navItems.map((item) => {
           const isActive =
             item.href === "/"
-              ? pathname === "/" || pathname.startsWith("/matchday")
-              : pathname.startsWith(item.href.split("/").slice(0, 2).join("/"));
+              ? pathname === "/"
+              : item.href === "/predict"
+                ? pathname === "/predict" || pathname.startsWith("/matchday")
+                : pathname.startsWith(item.href.split("/").slice(0, 2).join("/"));
           return (
             <Link
               key={item.href}
