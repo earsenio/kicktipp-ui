@@ -9,9 +9,9 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
+import { cn } from "@/lib/utils";
 
 function nameToColor(name: string): string {
   let hash = 0;
@@ -20,6 +20,12 @@ function nameToColor(name: string): string {
   }
   const h = Math.abs(hash) % 360;
   return `hsl(${h}, 60%, 55%)`;
+}
+
+// Each player's line color: the current player is always the accent green to match
+// their emphasized line, everyone else gets a stable hash-derived hue.
+function playerColor(name: string, isCurrentPlayer: boolean): string {
+  return isCurrentPlayer ? "var(--accent-green)" : nameToColor(name);
 }
 
 export function OverviewChart({ data }: { data: OverviewResponse }) {
@@ -69,7 +75,8 @@ export function OverviewChart({ data }: { data: OverviewResponse }) {
 
   return (
     <Card className="p-4">
-      <div className="h-[350px] md:h-[450px]">
+      {/* Chart fills most of the viewport on mobile; fixed height on desktop. */}
+      <div className="h-[65vh] md:h-[450px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <XAxis
@@ -93,22 +100,12 @@ export function OverviewChart({ data }: { data: OverviewResponse }) {
               }}
               labelStyle={{ fontWeight: 600, marginBottom: 4 }}
             />
-            <Legend
-              onClick={(e) => {
-                if (typeof e.value === "string") togglePlayer(e.value);
-              }}
-              wrapperStyle={{ fontSize: 11, cursor: "pointer" }}
-            />
             {data.players.map((p) => (
               <Line
                 key={p.name}
                 type="monotone"
                 dataKey={p.name}
-                stroke={
-                  p.isCurrentPlayer
-                    ? "var(--accent-green)"
-                    : nameToColor(p.name)
-                }
+                stroke={playerColor(p.name, p.isCurrentPlayer)}
                 strokeWidth={p.isCurrentPlayer ? 3 : 1.5}
                 strokeOpacity={
                   hiddenPlayers.has(p.name) ? 0 : p.isCurrentPlayer ? 1 : 0.5
@@ -123,6 +120,47 @@ export function OverviewChart({ data }: { data: OverviewResponse }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Player selector: one-column checkbox list. Replaces the inline legend so
+          lines are easy to toggle on touch. Checked = line visible. */}
+      <ul className="mt-4 flex flex-col gap-0.5 border-t border-border pt-3">
+        {data.players.map((p) => {
+          const visible = !hiddenPlayers.has(p.name);
+          return (
+            <li key={p.name}>
+              <label
+                className={cn(
+                  "flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-muted",
+                  p.isCurrentPlayer && "bg-[var(--accent-green)]/10"
+                )}
+              >
+                <input
+                  type="checkbox"
+                  checked={visible}
+                  onChange={() => togglePlayer(p.name)}
+                  className="h-4 w-4 shrink-0 accent-[var(--accent-green)]"
+                />
+                <span
+                  className="h-3 w-3 shrink-0 rounded-full"
+                  style={{
+                    backgroundColor: playerColor(p.name, p.isCurrentPlayer),
+                    opacity: visible ? 1 : 0.3,
+                  }}
+                />
+                <span
+                  className={cn(
+                    "truncate text-sm",
+                    p.isCurrentPlayer ? "font-bold text-foreground" : "text-muted-foreground",
+                    !visible && "line-through opacity-60"
+                  )}
+                >
+                  {p.name}
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
     </Card>
   );
 }

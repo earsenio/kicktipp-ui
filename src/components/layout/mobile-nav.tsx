@@ -70,11 +70,13 @@ export function MobileNav() {
               >
                 <span
                   className={cn(
-                    "-mt-4 flex h-14 w-14 flex-col items-center justify-center gap-0.5 rounded-full bg-primary text-primary-foreground ring-4 ring-background transition-transform",
-                    active ? "scale-105 shadow-lg shadow-primary/40" : "shadow-lg shadow-primary/30"
+                    "-mt-4 flex h-14 w-14 flex-col items-center justify-center gap-0.5 rounded-full text-primary-foreground ring-4 ring-background transition-all duration-200",
+                    active
+                      ? "scale-110 bg-primary shadow-lg shadow-primary/60 ring-primary/40"
+                      : "bg-primary/55 shadow-md shadow-primary/20"
                   )}
                 >
-                  <tab.icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} />
+                  <tab.icon className="h-5 w-5" strokeWidth={active ? 2.6 : 2} />
                   <span className={cn("text-[10px] leading-none", active ? "font-extrabold" : "font-bold")}>
                     {tab.label}
                   </span>

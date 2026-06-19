@@ -240,10 +240,14 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
     const raf = requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         const matchEl = idx >= 0 ? matchRefs.current.get(`${pendingScrollMd}-${idx}`) : null;
+        // Use an instant (non-smooth) jump for the on-load positioning: it lands
+        // synchronously, so by the time we flip allowPrevLoad below the viewport is
+        // already correct and the previous-matchday prepend anchors against it. A
+        // smooth animation would still be running and the prepend would fight it.
         if (matchEl) {
-          matchEl.scrollIntoView({ behavior: "smooth", block: "center" });
+          matchEl.scrollIntoView({ behavior: "auto", block: "center" });
         } else {
-          sectionRefs.current.get(pendingScrollMd)?.scrollIntoView({ behavior: "smooth", block: "start" });
+          sectionRefs.current.get(pendingScrollMd)?.scrollIntoView({ behavior: "auto", block: "start" });
         }
         setPendingScrollMd(null);
         // Initial scroll done — now allow scroll-up to load earlier matchdays.
@@ -614,10 +618,18 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
 
   return (
     <div className="-m-4 md:-m-6">
-      {/* Header */}
-      <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+      {/* Header. In predict mode the fixed top bar also carries the matchday pills
+          row (~3rem) below the 56px header, which the layout's pt-14 doesn't reserve
+          space for — add top padding so the title clears the pills. Today mode has no
+          pills, so it keeps the default spacing. */}
+      <div
+        className={cn(
+          "px-4 pb-2 flex items-center justify-between",
+          todayOnly ? "pt-4" : "pt-[3.75rem]"
+        )}
+      >
         <h1 className="text-2xl font-extrabold tracking-tight">
-          {todayOnly ? "Today" : "Predictions"}
+          {todayOnly ? "Today" : "All Predictions"}
         </h1>
         {shownMissingCount > 0 && (
           <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
