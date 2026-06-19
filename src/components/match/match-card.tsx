@@ -28,16 +28,25 @@ function StatusBadge({ live }: { live: boolean }) {
 
 // Shared live/final score block: prominent score, the user's tip beneath it, and a
 // correctness chip (Exact / Tendency / Wrong + points) when the tip can be graded.
+const RESULT_LABEL: Record<ResultType, string> = {
+  correct: "Exact",
+  tendency: "Tendency",
+  wrong: "Wrong",
+};
+
 function ResultDisplay({
   score,
   tip,
   resultType,
+  points,
 }: {
   score: [number, number];
   tip: string | null;
   resultType: ResultType | null;
+  // Real points earned for this match (from the leaderboard). null while loading
+  // or before kicktipp has scored it — we then fall back to the grade word.
+  points?: number | null;
 }) {
-  const points = resultType === "correct" ? 4 : resultType === "tendency" ? 2 : 0;
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="flex items-center gap-2">
@@ -73,7 +82,7 @@ function ResultDisplay({
                 resultType === "wrong" && "bg-red-500/15 text-red-600 dark:text-red-400"
               )}
             >
-              {points} Pts
+              {points != null ? `${points} Pts` : RESULT_LABEL[resultType]}
             </span>
           )}
         </div>
@@ -122,9 +131,11 @@ interface MatchCardBetProps {
   // When provided, a finished card can open the all-players predictions sheet.
   matchday?: number;
   matchIndex?: number;
+  // Real points earned for this match (current user), sourced from the leaderboard.
+  points?: number | null;
 }
 
-export function MatchCardBet({ match, betState, onBetChange, index, matchday, matchIndex }: MatchCardBetProps) {
+export function MatchCardBet({ match, betState, onBetChange, index, matchday, matchIndex, points }: MatchCardBetProps) {
   const [predictionsOpen, setPredictionsOpen] = useState(false);
   const status = getMatchStatus(match.kickoff, match.result, match.ended);
   // A match in play stays "live" even before a score appears; the numeric block only
@@ -246,7 +257,7 @@ export function MatchCardBet({ match, betState, onBetChange, index, matchday, ma
           />
         </div>
       ) : score ? (
-        <ResultDisplay score={score} tip={tip} resultType={resultType} />
+        <ResultDisplay score={score} tip={tip} resultType={resultType} points={points} />
       ) : (
         // Kicked off but no score yet — keep the user's prediction visible.
         <div className="flex flex-col items-center gap-1">

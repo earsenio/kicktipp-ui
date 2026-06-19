@@ -629,7 +629,7 @@ async function getMatchdayPredictions(session: UserSession, matchday: number) {
   const matchCount = matches.length;
 
   const players: Array<{
-    name: string; position: string;
+    name: string; position: string; isCurrentPlayer: boolean;
     predictions: Array<{ tip: string | null; points: number | null }>;
   }> = [];
 
@@ -655,7 +655,7 @@ async function getMatchdayPredictions(session: UserSession, matchday: number) {
       predictions[index] = { tip, points };
     });
 
-    players.push({ name, position, predictions });
+    players.push({ name, position, isCurrentPlayer: !!session.player && name === session.player, predictions });
   });
 
   return { matchday, matches, players };

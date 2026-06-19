@@ -147,6 +147,8 @@ export interface BonusQuestionsResponse {
 export interface PlayerPrediction {
   name: string;
   position: string;
+  // True for the logged-in user's row (name === session.player).
+  isCurrentPlayer: boolean;
   // One entry per match of the matchday (by column order); tip "H:G" or null when hidden.
   predictions: Array<{ tip: string | null; points: number | null }>;
 }

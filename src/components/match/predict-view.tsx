@@ -5,13 +5,13 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { cn, isDeadlinePassed, getMatchStatus } from "@/lib/utils";
+import { cn, isDeadlinePassed, getMatchStatus, hasResult } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { MatchCardBet } from "@/components/match/match-card";
 import { MatchCardSkeletonGrid } from "@/components/shared/loading-skeleton";
 import { Loader2, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type { BetsResponse } from "@/lib/types";
+import type { BetsResponse, MatchdayPredictionsResponse } from "@/lib/types";
 import { parseScore } from "@/lib/utils";
 import { useMatchdayContext } from "@/components/match/matchday-context";
 import Link from "next/link";
@@ -34,6 +34,9 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
   const { setShowPills, setActiveMatchday, setMaxMatchday, setOnPillClick } = useMatchdayContext();
 
   const [matchdayData, setMatchdayData] = useState<Map<number, BetsResponse>>(new Map());
+  // Per matchday, the current user's real earned points keyed by match index, from
+  // get_matchday_predictions (the same source as the all-players sheet).
+  const [pointsByMd, setPointsByMd] = useState<Map<number, Record<number, number | null>>>(new Map());
   // In today mode, the set of "home|away" keys for matches happening today, from
   // get_today_matches (keeps the site-timezone "today" logic server-side). null
   // until loaded so we can distinguish "loading" from "no games today".
@@ -50,6 +53,8 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
   const [pendingScrollMd, setPendingScrollMd] = useState<number | null>(null);
 
   const loadedRef = useRef<Set<number>>(new Set());
+  // Matchdays whose points we've lazily fetched at least once (the live tick refetches).
+  const pointsLoadedRef = useRef<Set<number>>(new Set());
   const loadingRef = useRef(false);
   const maxMdRef = useRef(34);
   const sectionRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -124,6 +129,65 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
       setLoadingPrev(false);
     }
   }, [setMaxMatchday]);
+
+  // Fetch the current user's real per-match points for a matchday from the
+  // leaderboard scrape (same source as the all-players sheet) and store them by
+  // match index. Used to show accurate points on each card.
+  // `myTips` are the user's own tips for the matchday (by match index, null where
+  // not tipped) — used to locate the user's row when the server flag is unset.
+  const fetchPoints = useCallback(async (md: number, myTips: Array<string | null>) => {
+    try {
+      const res = await apiFetch("/api/kicktipp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool: "get_matchday_predictions", args: { matchday: md } }),
+      });
+      const json = await res.json();
+      if (!res.ok) return;
+      const data = json.data as MatchdayPredictionsResponse;
+
+      // Prefer the server's current-player flag; fall back to matching the user's
+      // own tips (their bets uniquely identify their row), since session.player is
+      // often unset. The fallback is safe: ambiguous → no match → grade-word chip.
+      let me = data.players.find((p) => p.isCurrentPlayer);
+      if (!me) {
+        // Match only on tips that are VISIBLE on the leaderboard — on the current
+        // matchday, not-yet-started games hide every player's tip (including the
+        // user's own row), so requiring all tips to match would never identify us.
+        // Pick the row that agrees with the user's bets on the most visible games
+        // with zero disagreements; require a unique maximum (else stay unidentified).
+        const tipped = myTips.map((t, i) => (t != null ? i : -1)).filter((i) => i >= 0);
+        if (tipped.length > 0) {
+          let best: typeof data.players[number] | null = null;
+          let bestAgree = 0;
+          let tie = false;
+          for (const p of data.players) {
+            let agree = 0;
+            let disagree = 0;
+            for (const i of tipped) {
+              const t = p.predictions[i]?.tip;
+              if (t == null) continue; // hidden for this player — ignore
+              if (t === myTips[i]) agree++;
+              else { disagree++; break; }
+            }
+            if (disagree > 0 || agree === 0) continue;
+            if (agree > bestAgree) { best = p; bestAgree = agree; tie = false; }
+            else if (agree === bestAgree) { tie = true; }
+          }
+          if (best && !tie) me = best;
+        }
+      }
+      if (!me) return;
+
+      // The row is identified, so a null points cell means "graded, no points badge"
+      // (kicktipp omits the <sub> for 0-point tips) → treat as 0, matching the sheet.
+      const map: Record<number, number | null> = {};
+      me.predictions.forEach((p, i) => { map[i] = p.points ?? 0; });
+      setPointsByMd((prev) => new Map(prev).set(md, map));
+    } catch {
+      // Ignore — cards fall back to the grade word until points load.
+    }
+  }, []);
 
   // Today mode: load the set of matches happening today (by "home|away" key) so we
   // can filter the current matchday's matches down to today's games.
@@ -354,6 +418,8 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
             const merged = old.matches.map((m, i) => ({ ...m, result: fresh.matches[i].result, ended: fresh.matches[i].ended }));
             return new Map(prev).set(md, { ...old, matches: merged });
           });
+          // Keep the card's points in sync with the live result.
+          fetchPoints(md, data.matches.map((m) => (parseScore((m.bet ?? "").trim()) ? m.bet.trim() : null)));
         } catch {
           // Ignore transient polling errors; the next tick retries.
         }
@@ -361,7 +427,21 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
     };
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
-  }, []);
+  }, [fetchPoints]);
+
+  // Lazily load the current user's points for any matchday that has results,
+  // once per matchday (the live tick above refreshes live ones).
+  useEffect(() => {
+    for (const [md, data] of matchdayData) {
+      if (pointsLoadedRef.current.has(md)) continue;
+      if (!data.matches.some((m) => hasResult(m.result))) continue;
+      pointsLoadedRef.current.add(md);
+      // fetchPoints sets state asynchronously (after the network round-trip), so this
+      // isn't a synchronous setState-in-effect cascade.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchPoints(md, data.matches.map((m) => (parseScore((m.bet ?? "").trim()) ? m.bet.trim() : null)));
+    }
+  }, [matchdayData, fetchPoints]);
 
   const updateBet = useCallback((md: number, index: number, field: "home" | "away", value: number | null) => {
     setBets((prev) => {
@@ -600,6 +680,7 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
                         index={startIndex + i}
                         matchday={md}
                         matchIndex={i}
+                        points={pointsByMd.get(md)?.[i] ?? null}
                       />
                     </motion.div>
                   );
