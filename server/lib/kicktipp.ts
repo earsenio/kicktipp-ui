@@ -207,6 +207,15 @@ function parseOdds($: cheerio.CheerioAPI, td: AnyNode): [string, string, string]
   ];
 }
 
+// Bonus/tendency points column ("X - Y - Z"): points earned for a correct
+// outcome — +home-win / +draw / +away-win. Returns null when the cell isn't
+// this column (so communities that don't show it degrade gracefully).
+function parseBonusPoints(text: string): { home: number; draw: number; away: number } | null {
+  const m = text.trim().match(/^(\d+)\s*-\s*(\d+)\s*-\s*(\d+)$/);
+  if (!m) return null;
+  return { home: +m[1], draw: +m[2], away: +m[3] };
+}
+
 // Searches an entire prediction/schedule row for a result span. The result column
 // index varies between pages and kicktipp layouts (see findBetColIndex), so we search
 // the whole row rather than a hardcoded column. Returns "H:G" or "-:-" when there is no
@@ -371,7 +380,9 @@ async function getTodayMatches(session: UserSession) {
   const resultsMap = await getResultsMap(session);
   const matches: Array<{
     time: string; kickoff: string; home: string; away: string; bet: string;
-    odds: { home: string; draw: string; away: string }; needsBet: boolean; result: string; ended: boolean;
+    odds: { home: string; draw: string; away: string };
+    bonusPoints: { home: number; draw: number; away: number } | null;
+    needsBet: boolean; result: string; ended: boolean;
   }> = [];
 
   // kicktipp prints the date/time only on the first match of a same-kickoff group;
@@ -414,9 +425,12 @@ async function getTodayMatches(session: UserSession) {
     const kickoff = matchDate.toISOString();
     const oddsTd = cols[betCol + 1];
     const [rateHome, rateDraw, rateAway] = oddsTd ? parseOdds($, oddsTd) : ["", "", ""];
+    // Bonus-points cell sits immediately before the bet-input column.
+    const bonusPoints = parseBonusPoints($(cols[betCol - 1]).text());
     matches.push({
       time, kickoff, home, away, bet,
       odds: { home: rateHome, draw: rateDraw, away: rateAway },
+      bonusPoints,
       needsBet: !bet, result, ended,
     });
   });
@@ -459,7 +473,9 @@ async function getBets(session: UserSession, matchday?: number) {
 
   const matches: Array<{
     date: string; kickoff: string | null; home: string; away: string; bet: string;
-    odds: { home: string; draw: string; away: string }; result: string; ended: boolean;
+    odds: { home: string; draw: string; away: string };
+    bonusPoints: { home: number; draw: number; away: number } | null;
+    result: string; ended: boolean;
   }> = [];
 
   // kicktipp prints the date/time only on the first match of a same-kickoff group;
@@ -498,7 +514,9 @@ async function getBets(session: UserSession, matchday?: number) {
     const kickoff = parsedDate ? parsedDate.toISOString() : null;
     const oddsTd = cols[betCol + 1];
     const [rateHome, rateDraw, rateAway] = oddsTd ? parseOdds($, oddsTd) : ["", "", ""];
-    matches.push({ date, kickoff, home, away, bet, odds: { home: rateHome, draw: rateDraw, away: rateAway }, result, ended });
+    // Bonus-points cell sits immediately before the bet-input column.
+    const bonusPoints = parseBonusPoints($(cols[betCol - 1]).text());
+    matches.push({ date, kickoff, home, away, bet, odds: { home: rateHome, draw: rateDraw, away: rateAway }, bonusPoints, result, ended });
   });
 
   return { title, matches, maxMatchday, currentMatchday };

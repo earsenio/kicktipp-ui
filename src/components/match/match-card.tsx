@@ -162,6 +162,24 @@ export function MatchCardBet({ match, betState, onBetChange, index, matchday, ma
 
   const tip = hasBet ? `${betState.home}:${betState.away}` : null;
 
+  // Which outcome the user's current prediction points to — drives the green badge.
+  // Updates live as scores are typed and persists for live/finished cards via the saved bet.
+  const predictedOutcome: "home" | "draw" | "away" | null = hasBet
+    ? betState.home! > betState.away!
+      ? "home"
+      : betState.home! < betState.away!
+        ? "away"
+        : "draw"
+    : null;
+
+  // Merged odds + bonus-points pills (home / draw / away by position, no text labels).
+  const outcomes = [
+    { key: "home" as const, odds: match.odds.home, bonus: match.bonusPoints?.home },
+    { key: "draw" as const, odds: match.odds.draw, bonus: match.bonusPoints?.draw },
+    { key: "away" as const, odds: match.odds.away, bonus: match.bonusPoints?.away },
+  ];
+  const hasOddsRow = Boolean(match.odds.home) || match.bonusPoints != null;
+
   return (
     <div
       className={cn(
@@ -270,18 +288,31 @@ export function MatchCardBet({ match, betState, onBetChange, index, matchday, ma
         </div>
       )}
 
-      {/* Odds row */}
-      {match.odds.home && isUpcoming && (
-        <div className="flex items-center justify-center gap-2">
-          <span className="px-2 py-1 rounded-md bg-muted font-mono text-xs text-muted-foreground border border-border">
-            H {match.odds.home}
-          </span>
-          <span className="px-2 py-1 rounded-md bg-muted font-mono text-xs text-muted-foreground border border-border">
-            D {match.odds.draw}
-          </span>
-          <span className="px-2 py-1 rounded-md bg-muted font-mono text-xs text-muted-foreground border border-border">
-            A {match.odds.away}
-          </span>
+      {/* Odds + bonus-points row — shown at all times (upcoming, live, finished).
+          Each pill = that outcome's decimal odds, with its bonus points as a corner
+          badge that turns green for the outcome the user predicted. */}
+      {hasOddsRow && (
+        <div className="flex items-center justify-center gap-3">
+          {outcomes.map((o) => (
+            <div key={o.key} className="relative">
+              <span className="block px-2.5 py-1 rounded-md bg-muted font-mono text-xs text-muted-foreground border border-border">
+                {o.odds || "–"}
+              </span>
+              {o.bonus != null && (
+                <span
+                  className={cn(
+                    "absolute -top-1.5 -right-1.5 flex h-[1.1rem] w-[1.1rem] items-center justify-center rounded-full font-mono text-[10px] font-bold border",
+                    predictedOutcome === o.key
+                      ? "bg-accent-green text-white border-accent-green"
+                      : "bg-background text-muted-foreground border-border"
+                  )}
+                  title={`+${o.bonus} pts if ${o.key === "home" ? match.home + " win" : o.key === "away" ? match.away + " win" : "draw"}`}
+                >
+                  {o.bonus}
+                </span>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
