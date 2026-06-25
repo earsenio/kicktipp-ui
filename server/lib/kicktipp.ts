@@ -374,6 +374,9 @@ async function getTodayMatches(session: UserSession) {
     odds: { home: string; draw: string; away: string }; needsBet: boolean; result: string; ended: boolean;
   }> = [];
 
+  // kicktipp prints the date/time only on the first match of a same-kickoff group;
+  // follow-on rows have an empty date cell, so carry the last parsed date forward.
+  let lastDate: Date | null = null;
   tbody.children("tr").each((_, tr) => {
     const row = $(tr);
     const cols = row.children("td");
@@ -381,7 +384,8 @@ async function getTodayMatches(session: UserSession) {
     const betCol = findBetColIndex($, row);
     if (betCol < 0) return;
     const dateText = $(cols[0]).text().trim();
-    const matchDate = parseMatchDate(dateText);
+    const matchDate = parseMatchDate(dateText) ?? lastDate;
+    if (matchDate) lastDate = matchDate;
     // Compare days in the site timezone so "today" matches what kicktipp shows.
     if (!matchDate || matchDate.toLocaleDateString("en-CA", { timeZone: tz }) !== todayKey) return;
 
@@ -458,6 +462,9 @@ async function getBets(session: UserSession, matchday?: number) {
     odds: { home: string; draw: string; away: string }; result: string; ended: boolean;
   }> = [];
 
+  // kicktipp prints the date/time only on the first match of a same-kickoff group;
+  // follow-on rows have an empty date cell, so carry the last parsed date forward.
+  let lastDate: Date | null = null;
   tbody.children("tr").each((_, tr) => {
     const row = $(tr);
     const cols = row.children("td");
@@ -465,7 +472,8 @@ async function getBets(session: UserSession, matchday?: number) {
     const betCol = findBetColIndex($, row);
     if (betCol < 0) return;
     const rawDate = $(cols[0]).text().trim();
-    const parsedDate = parseMatchDate(rawDate);
+    const parsedDate = parseMatchDate(rawDate) ?? lastDate;
+    if (parsedDate) lastDate = parsedDate;
     const date = formatMatchDate(parsedDate, rawDate);
     const home = $(cols[1]).text().trim();
     const away = $(cols[2]).text().trim();
