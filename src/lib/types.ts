@@ -24,7 +24,11 @@ export interface TodayMatch {
   bonusPoints: { home: number; draw: number; away: number } | null;
   needsBet: boolean;
   // Live or final score scraped from kicktipp ("H:G"), or "-:-" when not started.
+  // For knockout games this is the 120-min score (the one kicktipp grades tips against).
   result: string;
+  // Headline final for knockout games decided after the graded 120-min result — a
+  // display string like "4:5 a.TAB" (score + kicktipp's marker). null for normal matches.
+  penaltyResult?: string | null;
   // True once kicktipp marks the match final (final whistle), distinct from in-play.
   ended: boolean;
 }
@@ -46,7 +50,11 @@ export interface BetMatch {
   // Bonus/tendency points per outcome (+home-win / +draw / +away-win). null if not shown.
   bonusPoints: { home: number; draw: number; away: number } | null;
   // Live or final score scraped from kicktipp ("H:G"), or "-:-" when not started.
+  // For knockout games this is the 120-min score (the one kicktipp grades tips against).
   result: string;
+  // Headline final for knockout games decided after the graded 120-min result — a
+  // display string like "4:5 a.TAB" (score + kicktipp's marker). null for normal matches.
+  penaltyResult?: string | null;
   // True once kicktipp marks the match final (final whistle), distinct from in-play.
   ended: boolean;
 }
@@ -67,6 +75,9 @@ export interface ScheduleMatch {
   home: string;
   away: string;
   result: string;
+  // Headline final for knockout games decided after the graded 120-min result — a
+  // display string like "4:5 a.TAB" (score + kicktipp's marker). null for normal matches.
+  penaltyResult?: string | null;
   ended?: boolean;
 }
 
