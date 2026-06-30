@@ -6,7 +6,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useKicktipp } from "@/hooks/use-kicktipp";
 import type { MatchdayPredictionsResponse } from "@/lib/types";
-import { cn, getInitials, gradeTip } from "@/lib/utils";
+import { cn, getInitials, gradeTipWithPoints } from "@/lib/utils";
 import { CountryFlag } from "@/components/shared/country-flag";
 import { motion } from "framer-motion";
 import { Check, Minus, X, Loader2 } from "lucide-react";
@@ -19,6 +19,8 @@ interface Props {
   home: string;
   away: string;
   result: string;
+  // Penalty-shootout score ("H:G") shown beside the 120-min result, when present.
+  penaltyResult?: string | null;
 }
 
 const gradeStyles = {
@@ -27,7 +29,7 @@ const gradeStyles = {
   wrong: { chip: "bg-red-500/15 text-red-600 dark:text-red-400", Icon: X },
 } as const;
 
-export function MatchPredictionsSheet({ open, onOpenChange, matchday, matchIndex, home, away, result }: Props) {
+export function MatchPredictionsSheet({ open, onOpenChange, matchday, matchIndex, home, away, result, penaltyResult }: Props) {
   const { data, loading, error } = useKicktipp<MatchdayPredictionsResponse>({
     tool: "get_matchday_predictions",
     args: { matchday },
@@ -46,7 +48,10 @@ export function MatchPredictionsSheet({ open, onOpenChange, matchday, matchIndex
           <SheetTitle className="flex items-center justify-center gap-2.5 text-base">
             <CountryFlag country={home} size={18} className="shrink-0" />
             <span className="font-semibold truncate max-w-[34%]">{home}</span>
-            <span className="font-mono font-extrabold px-2 py-0.5 rounded-lg bg-muted">{result}</span>
+            <span className="font-mono font-extrabold px-2 py-0.5 rounded-lg bg-muted">
+              {result}
+              {penaltyResult && <span className="ml-1 text-xs font-bold text-muted-foreground">({penaltyResult})</span>}
+            </span>
             <span className="font-semibold truncate max-w-[34%]">{away}</span>
             <CountryFlag country={away} size={18} className="shrink-0" />
           </SheetTitle>
@@ -66,7 +71,9 @@ export function MatchPredictionsSheet({ open, onOpenChange, matchday, matchIndex
             <p className="text-sm text-muted-foreground text-center py-12">No predictions to show.</p>
           ) : (
             rows.map((r, i) => {
-              const grade = gradeTip(r.tip, result);
+              // Color from kicktipp's awarded points (graded on the 120-min result) so the
+              // chip color always agrees with the points number shown beside it.
+              const grade = gradeTipWithPoints(r.tip, result, r.points);
               const style = grade ? gradeStyles[grade] : null;
               return (
                 <motion.div

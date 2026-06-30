@@ -184,6 +184,13 @@ async function submitForm(url: string, fields: Record<string, string>, session: 
 
 // ── Parsing helpers ───────────────────────────────────────────────
 
+// Kicktipp highlights the logged-in member's own row in ranking tables with the
+// CSS class "treffer" (one row per page). Detecting it lets us identify the current
+// user without relying on session.player, which is frequently unset.
+function isCurrentPlayerRow($: cheerio.CheerioAPI, tr: AnyNode): boolean {
+  return /\btreffer\b/.test($(tr).attr("class") || "");
+}
+
 // Kicktipp sometimes adds columns to tables. Instead of hardcoding indices,
 // find the bet column by its content: either .nichttippbar or _heimTipp inputs.
 function findBetColIndex($: cheerio.CheerioAPI, row: cheerio.Cheerio<AnyNode>): number {
@@ -216,33 +223,67 @@ function parseBonusPoints(text: string): { home: number; draw: number; away: num
   return { home: +m[1], draw: +m[2], away: +m[3] };
 }
 
+// Reads a single "phase" (span.kicktipp-abschnitt) into "H:G". The home/away goals
+// live in direct-child span.kicktipp-heim / span.kicktipp-gast (the separator is a
+// span.kicktipp-tortrenner, "-"). Returns null when the phase has no numeric score
+// (e.g. "-" placeholders on a not-started match).
+function readAbschnittScore($: cheerio.CheerioAPI, abschnitt: cheerio.Cheerio<AnyNode>): string | null {
+  if (!abschnitt.length) return null;
+  const h = abschnitt.children("span.kicktipp-heim").first().text().trim();
+  const g = abschnitt.children("span.kicktipp-gast").first().text().trim();
+  if (!/^\d+$/.test(h) || !/^\d+$/.test(g)) return null;
+  return `${h}:${g}`;
+}
+
+// Parses a span.kicktipp-ergebnis. Knockout games decided in extra time / on penalties
+// carry TWO scores: the headline final (e.g. "4-5 a.TAB") in the primary phase, plus a
+// separate span.kicktipp-tippwertung sub-result ("1-1 a.Prlg") which is the score
+// kicktipp actually grades tips against. We return the graded score as `result` (so our
+// colour coding matches kicktipp's awarded points) and the headline final — with its
+// marker (a.TAB / n.V. / …) — as `penalty`, to show on its own line. Normal matches have
+// a single phase: result = that score, penalty = null.
+function parseResultSpan($: cheerio.CheerioAPI, span: cheerio.Cheerio<AnyNode>): { result: string; penalty: string | null } {
+  if (!span.length) return { result: "-:-", penalty: null };
+  // Primary phase = the direct-child phase (the headline final). Grading phase =
+  // the nested kicktipp-tippwertung phase, present only for ET/penalty games.
+  const primary = span.children("span.kicktipp-abschnitt").first();
+  const tippwertung = span.find("span.kicktipp-abschnitt.kicktipp-tippwertung").first();
+  const finalScore = readAbschnittScore($, primary);
+  const gradedScore = readAbschnittScore($, tippwertung);
+
+  let result = gradedScore ?? finalScore;
+  if (!result) {
+    // Some live layouts render the score as plain text ("1-2") inside the span.
+    const m = span.text().trim().match(/(\d+)\s*[:\-]\s*(\d+)/);
+    result = m ? `${m[1]}:${m[2]}` : "-:-";
+  }
+
+  // Show the headline final on its own line whenever it differs from the graded score
+  // (i.e. the match was decided after the 120-min/ET result kicktipp scored tips on).
+  let penalty: string | null = null;
+  if (gradedScore && finalScore && gradedScore !== finalScore) {
+    const marker = primary.children("span.kicktipp-zusatz").first().text().trim();
+    penalty = marker ? `${finalScore} ${marker}` : finalScore;
+  }
+  return { result, penalty };
+}
+
 // Searches an entire prediction/schedule row for a result span. The result column
 // index varies between pages and kicktipp layouts (see findBetColIndex), so we search
-// the whole row rather than a hardcoded column. Returns "H:G" or "-:-" when there is no
-// valid score yet (upcoming match) or the markup is unexpected.
-function parseRowResult($: cheerio.CheerioAPI, row: cheerio.Cheerio<AnyNode>): string {
-  const span = row.find("span.kicktipp-ergebnis").first();
-  if (!span.length) return "-:-";
-  const h = span.find("span.kicktipp-heim").text().trim();
-  const g = span.find("span.kicktipp-gast").text().trim();
-  if (h === "" && g === "") {
-    // Some live layouts render the score as plain text ("1:2") inside the span.
-    const m = span.text().trim().match(/(\d+)\s*[:\-]\s*(\d+)/);
-    return m ? `${m[1]}:${m[2]}` : "-:-";
-  }
-  if (!/^\d+$/.test(h) || !/^\d+$/.test(g)) return "-:-";
-  return `${h}:${g}`;
+// the whole row rather than a hardcoded column.
+function parseRowResult($: cheerio.CheerioAPI, row: cheerio.Cheerio<AnyNode>): { result: string; penalty: string | null } {
+  return parseResultSpan($, row.find("span.kicktipp-ergebnis").first());
 }
 
 // Like parseRowResult, but also reports whether the match is over. Kicktipp tags the
 // result phase on span.kicktipp-abschnitt: in-play matches carry "kicktipp-liveergebnis",
 // finished ones "kicktipp-abpfiff" (final whistle). We treat any valid score that is NOT
 // flagged live as final — this covers abpfiff plus extra-time/penalty final markers.
-function parseRowResultInfo($: cheerio.CheerioAPI, row: cheerio.Cheerio<AnyNode>): { result: string; ended: boolean } {
-  const result = parseRowResult($, row);
+function parseRowResultInfo($: cheerio.CheerioAPI, row: cheerio.Cheerio<AnyNode>): { result: string; penalty: string | null; ended: boolean } {
+  const { result, penalty } = parseRowResult($, row);
   const hasScore = result !== "-:-";
   const live = row.find("span.kicktipp-ergebnis .kicktipp-liveergebnis").length > 0;
-  return { result, ended: hasScore && !live };
+  return { result, penalty, ended: hasScore && !live };
 }
 
 // Extracts the user's locked tip from a non-bettable ("nichttippbar") cell without
@@ -343,15 +384,34 @@ function ensureCommunity(session: UserSession): string {
 // The prediction page shows the user's tips but not the live/final score. Results
 // (incl. live, via span.kicktipp-liveergebnis) live on the schedule page, so we fetch
 // it and key the results by "home|away" for merging into bets/today's matches.
-async function getResultsMap(session: UserSession, matchday?: number): Promise<Map<string, { result: string; ended: boolean }>> {
-  const map = new Map<string, { result: string; ended: boolean }>();
+//
+// One wrinkle: the schedule page only shows a knockout game's HEADLINE final
+// (e.g. "4-5 a.TAB"), not the 120-min/ET score kicktipp actually grades tips on.
+// That breakdown (span.kicktipp-tippwertung) only appears on the leaderboard page,
+// so we overlay the leaderboard's graded score + headline final on top for any match
+// it resolves — leaving normal matches sourced from the schedule untouched.
+async function getResultsMap(session: UserSession, matchday?: number): Promise<Map<string, { result: string; penalty: string | null; ended: boolean }>> {
+  const map = new Map<string, { result: string; penalty: string | null; ended: boolean }>();
   try {
     const schedule = await getSchedule(session, matchday);
     for (const m of schedule.matches) {
-      if (m.result && m.result !== "-:-") map.set(`${m.home}|${m.away}`, { result: m.result, ended: m.ended });
+      if (m.result && m.result !== "-:-") map.set(`${m.home}|${m.away}`, { result: m.result, penalty: m.penaltyResult ?? null, ended: m.ended });
     }
   } catch {
     // Schedule unavailable — fall back to no results rather than failing the page.
+  }
+  try {
+    const lb = await getLeaderboard(session, matchday);
+    for (const m of lb.matches ?? []) {
+      // Only override when the leaderboard exposes the penalty/ET breakdown — that's the
+      // only case the schedule's headline-only result is wrong for grading.
+      if (m.penaltyResult) {
+        const existing = map.get(`${m.home}|${m.away}`);
+        map.set(`${m.home}|${m.away}`, { result: m.result, penalty: m.penaltyResult, ended: existing?.ended ?? true });
+      }
+    }
+  } catch {
+    // Leaderboard unavailable — keep schedule-derived results.
   }
   return map;
 }
@@ -382,7 +442,7 @@ async function getTodayMatches(session: UserSession) {
     time: string; kickoff: string; home: string; away: string; bet: string;
     odds: { home: string; draw: string; away: string };
     bonusPoints: { home: number; draw: number; away: number } | null;
-    needsBet: boolean; result: string; ended: boolean;
+    needsBet: boolean; result: string; penaltyResult: string | null; ended: boolean;
   }> = [];
 
   // kicktipp prints the date/time only on the first match of a same-kickoff group;
@@ -404,6 +464,7 @@ async function getTodayMatches(session: UserSession) {
     const away = $(cols[2]).text().trim();
     const info = resultsMap.get(`${home}|${away}`);
     const result = info?.result ?? "-:-";
+    const penaltyResult = info?.penalty ?? null;
     const ended = info?.ended ?? false;
     const betTd = $(cols[betCol]);
     let bet: string;
@@ -431,7 +492,7 @@ async function getTodayMatches(session: UserSession) {
       time, kickoff, home, away, bet,
       odds: { home: rateHome, draw: rateDraw, away: rateAway },
       bonusPoints,
-      needsBet: !bet, result, ended,
+      needsBet: !bet, result, penaltyResult, ended,
     });
   });
 
@@ -475,7 +536,7 @@ async function getBets(session: UserSession, matchday?: number) {
     date: string; kickoff: string | null; home: string; away: string; bet: string;
     odds: { home: string; draw: string; away: string };
     bonusPoints: { home: number; draw: number; away: number } | null;
-    result: string; ended: boolean;
+    result: string; penaltyResult: string | null; ended: boolean;
   }> = [];
 
   // kicktipp prints the date/time only on the first match of a same-kickoff group;
@@ -495,6 +556,7 @@ async function getBets(session: UserSession, matchday?: number) {
     const away = $(cols[2]).text().trim();
     const info = resultsMap.get(`${home}|${away}`);
     const result = info?.result ?? "-:-";
+    const penaltyResult = info?.penalty ?? null;
     const ended = info?.ended ?? false;
     const betTd = $(cols[betCol]);
     let bet: string;
@@ -516,7 +578,7 @@ async function getBets(session: UserSession, matchday?: number) {
     const [rateHome, rateDraw, rateAway] = oddsTd ? parseOdds($, oddsTd) : ["", "", ""];
     // Bonus-points cell sits immediately before the bet-input column.
     const bonusPoints = parseBonusPoints($(cols[betCol - 1]).text());
-    matches.push({ date, kickoff, home, away, bet, odds: { home: rateHome, draw: rateDraw, away: rateAway }, bonusPoints, result, ended });
+    matches.push({ date, kickoff, home, away, bet, odds: { home: rateHome, draw: rateDraw, away: rateAway }, bonusPoints, result, penaltyResult, ended });
   });
 
   return { title, matches, maxMatchday, currentMatchday };
@@ -534,7 +596,7 @@ async function getSchedule(session: UserSession, matchday?: number) {
   const tbody = table.find("tbody");
   if (!tbody.length) return { title, matches: [] };
 
-  const matches: Array<{ date: string; kickoff: string | null; home: string; away: string; result: string; ended: boolean }> = [];
+  const matches: Array<{ date: string; kickoff: string | null; home: string; away: string; result: string; penaltyResult: string | null; ended: boolean }> = [];
   tbody.children("tr").each((_, tr) => {
     const cols = $(tr).children("td");
     if (cols.length < 5) return;
@@ -545,8 +607,8 @@ async function getSchedule(session: UserSession, matchday?: number) {
     const home = $(cols[2]).text().trim();
     const away = $(cols[3]).text().trim();
     // Result column varies by site layout, so search the whole row.
-    const { result, ended } = parseRowResultInfo($, $(tr));
-    matches.push({ date, kickoff, home, away, result, ended });
+    const { result, penalty, ended } = parseRowResultInfo($, $(tr));
+    matches.push({ date, kickoff, home, away, result, penaltyResult: penalty, ended });
   });
 
   return { title, matches };
@@ -558,7 +620,7 @@ async function getLeaderboard(session: UserSession, matchday?: number, bonus = f
   const content = $("#kicktipp-content");
   const title = content.find("div.pagetitle").text().trim();
 
-  let matches: Array<{ date: string; home: string; away: string; result: string }> | undefined;
+  let matches: Array<{ date: string; home: string; away: string; result: string; penaltyResult: string | null }> | undefined;
   if (!bonus) {
     const matchesTable = content.find("table#spielplanSpiele");
     if (matchesTable.length) {
@@ -566,11 +628,7 @@ async function getLeaderboard(session: UserSession, matchday?: number, bonus = f
       matchesTable.find("tbody tr").each((_, tr) => {
         const cols = $(tr).children("td");
         if (cols.length < 4) return;
-        const resultSpan = $(cols[3]).find("span.kicktipp-ergebnis");
-        let result = "-:-";
-        if (resultSpan.length) {
-          result = `${resultSpan.find("span.kicktipp-heim").text().trim()}:${resultSpan.find("span.kicktipp-gast").text().trim()}`;
-        }
+        const { result, penalty: penaltyResult } = parseResultSpan($, $(cols[3]).find("span.kicktipp-ergebnis").first());
         const rawDate = $(cols[0]).text().trim();
         const parsedDate = parseMatchDate(rawDate);
         matches!.push({
@@ -581,6 +639,7 @@ async function getLeaderboard(session: UserSession, matchday?: number, bonus = f
           home: $(cols[1]).text().trim(),
           away: $(cols[2]).text().trim(),
           result,
+          penaltyResult,
         });
       });
     }
@@ -623,7 +682,7 @@ async function getLeaderboard(session: UserSession, matchday?: number, bonus = f
       matchdayPoints: $(tr).find("td.spieltagspunkte").text().trim(),
       bonus: $(tr).find("td.bonus").text().trim(),
       total: $(tr).find("td.gesamtpunkte").text().trim(),
-      isCurrentPlayer: !!session.player && name === session.player,
+      isCurrentPlayer: isCurrentPlayerRow($, tr) || (!!session.player && name === session.player),
     });
   });
 
@@ -681,7 +740,12 @@ async function getMatchdayPredictions(session: UserSession, matchday: number) {
       predictions[index] = { tip, points };
     });
 
-    players.push({ name, position, isCurrentPlayer: !!session.player && name === session.player, predictions });
+    // Kicktipp highlights the logged-in member's own ranking row with class "treffer"
+    // (exactly one row per page, stable across matchdays). This is more reliable than
+    // matching session.player, which is often unset — so the UI can always locate the
+    // user's points even on a partially-played matchday with few visible tips.
+    const isCurrentPlayer = isCurrentPlayerRow($, tr) || (!!session.player && name === session.player);
+    players.push({ name, position, isCurrentPlayer, predictions });
   });
 
   return { matchday, matches, players };

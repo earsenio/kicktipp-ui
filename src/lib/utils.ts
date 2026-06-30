@@ -30,6 +30,24 @@ export function gradeTip(
   return "wrong";
 }
 
+// Grades a tip for color coding, anchored to kicktipp's authoritative awarded points
+// so the chip color can never contradict the number shown next to it. `result` is the
+// 120-min "H:G" score (what kicktipp scores tips against; penalties are excluded).
+// Zero points → wrong; scored + exact → correct; scored but not exact → tendency.
+// Falls back to plain string grading only while points are still loading (null).
+export function gradeTipWithPoints(
+  tip: string | null | undefined,
+  result: string | null | undefined,
+  points: number | null | undefined
+): "correct" | "tendency" | "wrong" | null {
+  if (points == null) return gradeTip(tip, result);
+  if (points <= 0) return "wrong";
+  const t = parseScore((tip ?? "").trim());
+  const r = parseScore((result ?? "").trim());
+  if (t && r && t.home === r.home && t.away === r.away) return "correct";
+  return "tendency"; // scored but not an exact hit
+}
+
 export function isDeadlinePassed(kickoffTime: string): boolean {
   return new Date(kickoffTime).getTime() <= Date.now();
 }

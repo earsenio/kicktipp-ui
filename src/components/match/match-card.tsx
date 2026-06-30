@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn, getMatchStatus, hasResult } from "@/lib/utils";
+import { cn, getMatchStatus, gradeTipWithPoints, hasResult } from "@/lib/utils";
 import type { BetMatch } from "@/lib/types";
 import { ScoreInput } from "@/components/match/score-input";
 import { CountryFlag } from "@/components/shared/country-flag";
@@ -36,11 +36,14 @@ const RESULT_LABEL: Record<ResultType, string> = {
 
 function ResultDisplay({
   score,
+  penaltyResult,
   tip,
   resultType,
   points,
 }: {
   score: [number, number];
+  // Penalty-shootout score ("H:G") shown on its own line below the 120-min score.
+  penaltyResult?: string | null;
   tip: string | null;
   resultType: ResultType | null;
   // Real points earned for this match (from the leaderboard). null while loading
@@ -68,6 +71,19 @@ function ResultDisplay({
           {score[1]}
         </span>
       </div>
+      {penaltyResult && (() => {
+        // Headline final (e.g. "4:5 a.TAB"): kept on its own line, separate from the
+        // 120-min score above which kicktipp grades tips against. The string carries
+        // kicktipp's own marker (a.TAB / n.V. / …); split it off so we can style it.
+        const [penScore, ...rest] = penaltyResult.split(" ");
+        const marker = rest.join(" ");
+        return (
+          <span className="text-xs font-medium text-muted-foreground">
+            <span className="font-mono font-bold text-foreground/80">{penScore}</span>
+            {marker && <span className="ml-1">{marker}</span>}
+          </span>
+        );
+      })()}
       {tip && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">
@@ -89,22 +105,6 @@ function ResultDisplay({
       )}
     </div>
   );
-}
-
-function getResultType(
-  betHome: number | null,
-  betAway: number | null,
-  result: string | null | undefined
-): ResultType | null {
-  if (!result || result === "-:-" || betHome === null || betAway === null) return null;
-  const parts = result.split(":");
-  if (parts.length !== 2) return null;
-  const rh = parseInt(parts[0], 10);
-  const ra = parseInt(parts[1], 10);
-  if (isNaN(rh) || isNaN(ra)) return null;
-  if (betHome === rh && betAway === ra) return "correct";
-  if (Math.sign(betHome - betAway) === Math.sign(rh - ra)) return "tendency";
-  return "wrong";
 }
 
 function parseResult(result: string): [number, number] | null {
@@ -146,7 +146,10 @@ export function MatchCardBet({ match, betState, onBetChange, index, matchday, ma
   const score = !isUpcoming && hasResult(match.result) ? parseResult(match.result) : null;
   const { isApproaching } = useDeadline(match.kickoff);
   const hasBet = betState.home !== null && betState.away !== null;
-  const resultType = score && hasBet ? getResultType(betState.home, betState.away, match.result) : null;
+  const tip = hasBet ? `${betState.home}:${betState.away}` : null;
+  // Color is anchored to kicktipp's awarded points (graded on the 120-min result) so the
+  // chip color never contradicts the points shown; penalties don't affect grading.
+  const resultType = score && hasBet ? gradeTipWithPoints(tip, match.result, points) : null;
   const homeWins = hasBet && isUpcoming && betState.home! > betState.away!;
   const awayWins = hasBet && isUpcoming && betState.away! > betState.home!;
   const needsBet = !hasBet && isUpcoming;
@@ -159,8 +162,6 @@ export function MatchCardBet({ match, betState, onBetChange, index, matchday, ma
   else if (!isUpcoming) cardState = "locked";
   else if (needsBet) cardState = "needs_bet";
   else if (hasBet && betState.saved) cardState = "saved";
-
-  const tip = hasBet ? `${betState.home}:${betState.away}` : null;
 
   // Which outcome the user's current prediction points to — drives the green badge.
   // Updates live as scores are typed and persists for live/finished cards via the saved bet.
@@ -275,7 +276,7 @@ export function MatchCardBet({ match, betState, onBetChange, index, matchday, ma
           />
         </div>
       ) : score ? (
-        <ResultDisplay score={score} tip={tip} resultType={resultType} points={points} />
+        <ResultDisplay score={score} penaltyResult={match.penaltyResult} tip={tip} resultType={resultType} points={points} />
       ) : (
         // Kicked off but no score yet — keep the user's prediction visible.
         <div className="flex flex-col items-center gap-1">
@@ -334,6 +335,7 @@ export function MatchCardBet({ match, betState, onBetChange, index, matchday, ma
             home={match.home}
             away={match.away}
             result={match.result}
+            penaltyResult={match.penaltyResult}
           />
         </>
       )}
