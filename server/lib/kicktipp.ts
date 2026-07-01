@@ -15,6 +15,11 @@ export interface UserSession {
   community: string;
   player: string;
   lastActive: number;
+  // The logged-in member's own participant id, derived per community from the
+  // prediction page (see getCurrentTipperId). Used to mark the user's row in
+  // ranking tables reliably, independent of display name or the "treffer" class.
+  tipperId?: string;
+  tipperCommunity?: string;
 }
 
 type Locale = "en" | "fr" | "de";
@@ -184,11 +189,60 @@ async function submitForm(url: string, fields: Record<string, string>, session: 
 
 // ── Parsing helpers ───────────────────────────────────────────────
 
-// Kicktipp highlights the logged-in member's own row in ranking tables with the
-// CSS class "treffer" (one row per page). Detecting it lets us identify the current
-// user without relying on session.player, which is frequently unset.
+// Kicktipp tags every ranking row with a "teilnehmer<ID>" class carrying the member's
+// stable participant id. Matching that id against the logged-in user's own id (see
+// getCurrentTipperId) is the reliable way to locate the user's row across all ranking
+// tables — independent of display name, locale, or the "treffer" highlight class, which
+// some communities apply to a different row.
+function participantId($: cheerio.CheerioAPI, tr: AnyNode): string | null {
+  const m = ($(tr).attr("class") || "").match(/\bteilnehmer(\d+)\b/);
+  return m ? m[1] : null;
+}
+
+// Best-effort fallback used only when the current user's participant id is unknown:
+// Kicktipp highlights the logged-in member's own ranking row with the CSS class
+// "treffer" (one row per page). Less reliable than participant-id matching — the
+// per-user flag it produces is corrected downstream in stampCurrentPlayer.
 function isCurrentPlayerRow($: cheerio.CheerioAPI, tr: AnyNode): boolean {
   return /\btreffer\b/.test($(tr).attr("class") || "");
+}
+
+// The logged-in member's own participant id, exposed as a hidden "tipperId" input on
+// the prediction page. Cached per community on the session so ranking tables can mark
+// the user's row by id. Returns null if it can't be determined (callers then fall back
+// to the "treffer"/name heuristic).
+export async function getCurrentTipperId(session: UserSession): Promise<string | null> {
+  const community = ensureCommunity(session);
+  if (session.tipperId && session.tipperCommunity === community) return session.tipperId;
+  try {
+    const $ = await fetchPage(predictUrl(community), session);
+    const id = $('input[name="tipperId"]').attr("value")?.trim() || null;
+    if (id) {
+      session.tipperId = id;
+      session.tipperCommunity = community;
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
+// Re-stamp the per-user "isCurrentPlayer" flag on a (possibly shared-cached) ranking
+// response using the requesting user's participant id. Returns a shallow clone so the
+// shared cache entry stays identity-neutral across users. When the id is unknown, the
+// response is returned unchanged, preserving the scraper's best-effort heuristic.
+export function stampCurrentPlayer(tool: string, data: unknown, tipperId: string | null): unknown {
+  if (!tipperId || !data || typeof data !== "object") return data;
+  const mark = (rows: Array<Record<string, unknown>>) =>
+    rows.map((r) => ({ ...r, isCurrentPlayer: r.playerId === tipperId }));
+  const d = data as Record<string, unknown>;
+  if (tool === "get_leaderboard" && Array.isArray(d.rankings)) {
+    return { ...d, rankings: mark(d.rankings as Array<Record<string, unknown>>) };
+  }
+  if ((tool === "get_overview" || tool === "get_matchday_predictions") && Array.isArray(d.players)) {
+    return { ...d, players: mark(d.players as Array<Record<string, unknown>>) };
+  }
+  return data;
 }
 
 // Kicktipp sometimes adds columns to tables. Instead of hardcoding indices,
@@ -668,7 +722,7 @@ async function getLeaderboard(session: UserSession, matchday?: number, bonus = f
   }
 
   const rankings: Array<{
-    position: string; name: string; matchdayPoints: string;
+    position: string; name: string; playerId: string | null; matchdayPoints: string;
     bonus: string; total: string; isCurrentPlayer: boolean;
   }> = [];
   content.find("table#ranking tbody tr").each((_, tr) => {
@@ -679,6 +733,7 @@ async function getLeaderboard(session: UserSession, matchday?: number, bonus = f
     rankings.push({
       position: posTd.text().trim(),
       name,
+      playerId: participantId($, tr),
       matchdayPoints: $(tr).find("td.spieltagspunkte").text().trim(),
       bonus: $(tr).find("td.bonus").text().trim(),
       total: $(tr).find("td.gesamtpunkte").text().trim(),
@@ -714,7 +769,7 @@ async function getMatchdayPredictions(session: UserSession, matchday: number) {
   const matchCount = matches.length;
 
   const players: Array<{
-    name: string; position: string; isCurrentPlayer: boolean;
+    name: string; position: string; playerId: string | null; isCurrentPlayer: boolean;
     predictions: Array<{ tip: string | null; points: number | null }>;
   }> = [];
 
@@ -745,7 +800,7 @@ async function getMatchdayPredictions(session: UserSession, matchday: number) {
     // matching session.player, which is often unset — so the UI can always locate the
     // user's points even on a partially-played matchday with few visible tips.
     const isCurrentPlayer = isCurrentPlayerRow($, tr) || (!!session.player && name === session.player);
-    players.push({ name, position, isCurrentPlayer, predictions });
+    players.push({ name, position, playerId: participantId($, tr), isCurrentPlayer, predictions });
   });
 
   return { matchday, matches, players };
@@ -770,7 +825,7 @@ async function getOverview(session: UserSession, view = "matchday-points") {
   if (!tbody.length) return { label, maxMatchday: 0, players: [] };
 
   const players: Array<{
-    position: string; name: string; matchdays: Record<number, string>;
+    position: string; name: string; playerId: string | null; matchdays: Record<number, string>;
     bonus: string; wins: string; total: string; isCurrentPlayer: boolean;
   }> = [];
   let maxMatchday = 0;
@@ -792,11 +847,11 @@ async function getOverview(session: UserSession, view = "matchday-points") {
       }
     });
     players.push({
-      position: posTd.text().trim(), name, matchdays,
+      position: posTd.text().trim(), name, playerId: participantId($, tr), matchdays,
       bonus: $(tr).find("td.bonus").text().trim(),
       wins: $(tr).find("td.siege").text().trim(),
       total: $(tr).find("td.punkte").text().trim(),
-      isCurrentPlayer: !!session.player && name === session.player,
+      isCurrentPlayer: isCurrentPlayerRow($, tr) || (!!session.player && name === session.player),
     });
   });
 

@@ -8,7 +8,7 @@ import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
-import { callTool, loginSession, VALID_TOOLS, SHARED_TOOLS, type ToolName, type UserSession } from "./lib/kicktipp.js";
+import { callTool, loginSession, getCurrentTipperId, stampCurrentPlayer, VALID_TOOLS, SHARED_TOOLS, type ToolName, type UserSession } from "./lib/kicktipp.js";
 import {
   createToken, verifyToken, updateToken,
   getKicktippSession, syncCookieCache, destroyKicktippSession,
@@ -225,6 +225,7 @@ app.post("/api/kicktipp", async (c) => {
   syncCookieCache(session);
   payload = await maybeRefreshToken(c, session, payload);
 
+  const RANKING_TOOLS = new Set(["get_leaderboard", "get_overview", "get_matchday_predictions"]);
   const NO_COMMUNITY_TOOLS = new Set(["get_communities", "get_status", "set_community"]);
   if (!session.community && !NO_COMMUNITY_TOOLS.has(tool)) {
     return c.json({ error: "No community set. Please select a community first.", code: "NO_COMMUNITY" }, 400);
@@ -236,10 +237,18 @@ app.post("/api/kicktipp", async (c) => {
   const key = cacheKey(tool, args, userId);
   const ttl = TOOL_TTL[tool] ?? 0;
 
+  // Ranking tables carry a per-user "isCurrentPlayer" flag, but they are shared-cached
+  // across users. Stamp the flag per request (by the caller's participant id) so the
+  // shared cache stays identity-neutral and every user sees their own row highlighted.
+  const stampForUser = async (payload: unknown) =>
+    RANKING_TOOLS.has(tool)
+      ? stampCurrentPlayer(tool, payload, await getCurrentTipperId(session))
+      : payload;
+
   if (!skipCache && ttl > 0) {
     const cached = get(key);
     if (cached !== null) {
-      return c.json({ data: cached, cached: true });
+      return c.json({ data: await stampForUser(cached), cached: true });
     }
   }
 
@@ -281,7 +290,7 @@ app.post("/api/kicktipp", async (c) => {
       payload = await maybeRefreshToken(c, session, payload);
     }
 
-    return c.json({ data, cached: false, cachedAt: Date.now() });
+    return c.json({ data: await stampForUser(data), cached: false, cachedAt: Date.now() });
   } catch (err) {
     syncCookieCache(session);
     console.error(`[${tool}] FAILED ${Date.now() - start}ms:`, err instanceof Error ? err.message : err);

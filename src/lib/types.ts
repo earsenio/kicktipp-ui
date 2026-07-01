@@ -91,6 +91,9 @@ export interface ScheduleResponse {
 export interface LeaderboardRanking {
   position: string;
   name: string;
+  // Kicktipp participant id (from the row's "teilnehmer<ID>" class); used to mark the
+  // logged-in user's row reliably. May be null on rare rows without the class.
+  playerId: string | null;
   matchdayPoints: string;
   bonus: string;
   total: string;
@@ -115,6 +118,7 @@ export interface LeaderboardResponse {
 export interface OverviewPlayer {
   position: string;
   name: string;
+  playerId: string | null;
   matchdays: Record<number, string>;
   bonus: string;
   wins: string;
@@ -162,7 +166,8 @@ export interface BonusQuestionsResponse {
 export interface PlayerPrediction {
   name: string;
   position: string;
-  // True for the logged-in user's row (name === session.player).
+  playerId: string | null;
+  // True for the logged-in user's row (matched by playerId === the user's participant id).
   isCurrentPlayer: boolean;
   // One entry per match of the matchday (by column order); tip "H:G" or null when hidden.
   predictions: Array<{ tip: string | null; points: number | null }>;
