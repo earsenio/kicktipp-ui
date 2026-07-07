@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn, getMatchStatus, gradeTipWithPoints, hasResult } from "@/lib/utils";
+import { cn, formatKickoffLocal, getMatchStatus, gradeTipWithPoints, hasResult } from "@/lib/utils";
 import type { BetMatch } from "@/lib/types";
 import { ScoreInput } from "@/components/match/score-input";
 import { CountryFlag } from "@/components/shared/country-flag";
@@ -201,7 +201,7 @@ export function MatchCardBet({ match, betState, onBetChange, index, matchday, ma
         {isUpcoming ? (
           <>
             <span className="text-sm font-semibold px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary dark:bg-primary/20">
-              {match.date}
+              {formatKickoffLocal(match.kickoff, match.date)}
             </span>
             {match.kickoff && <MatchCountdown time={match.kickoff} />}
           </>

@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
-import { cn, isDeadlinePassed, getMatchStatus, hasResult } from "@/lib/utils";
+import { cn, isDeadlinePassed, isKickoffToday, getMatchStatus, hasResult } from "@/lib/utils";
 import { apiFetch } from "@/lib/api";
 import { MatchCardBet } from "@/components/match/match-card";
 import { MatchCardSkeletonGrid } from "@/components/shared/loading-skeleton";
@@ -37,10 +37,6 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
   // Per matchday, the current user's real earned points keyed by match index, from
   // get_matchday_predictions (the same source as the all-players sheet).
   const [pointsByMd, setPointsByMd] = useState<Map<number, Record<number, number | null>>>(new Map());
-  // In today mode, the set of "home|away" keys for matches happening today, from
-  // get_today_matches (keeps the site-timezone "today" logic server-side). null
-  // until loaded so we can distinguish "loading" from "no games today".
-  const [todayKeys, setTodayKeys] = useState<Set<string> | null>(null);
   const [loadingNext, setLoadingNext] = useState(false);
   // True while the in-flight load is an upward (previous matchday) load, so we can
   // show the loading skeleton above the list instead of below it.
@@ -188,27 +184,6 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
       // Ignore — cards fall back to the grade word until points load.
     }
   }, []);
-
-  // Today mode: load the set of matches happening today (by "home|away" key) so we
-  // can filter the current matchday's matches down to today's games.
-  useEffect(() => {
-    if (!todayOnly) return;
-    (async () => {
-      try {
-        const res = await apiFetch("/api/kicktipp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tool: "get_today_matches" }),
-        });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || "Request failed");
-        const data = json.data as { matches: Array<{ home: string; away: string }> };
-        setTodayKeys(new Set(data.matches.map((m) => `${m.home}|${m.away}`)));
-      } catch {
-        setTodayKeys(new Set());
-      }
-    })();
-  }, [todayOnly]);
 
   // On mount: enable pills and open on the current matchday, then scroll to its
   // next predictable game (handled by the pendingScroll effect below). In today
@@ -565,8 +540,7 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
     );
   }
 
-  // In today mode we also need the today set before we can render the filtered list.
-  if (loadedMatchdays.length === 0 || (todayOnly && todayKeys === null)) {
+  if (loadedMatchdays.length === 0) {
     return (
       <div className="space-y-4 max-w-4xl mx-auto">
         <div className="h-8 w-48 bg-muted rounded animate-pulse" />
@@ -575,9 +549,10 @@ export function PredictView({ todayOnly = false }: PredictViewProps) {
     );
   }
 
-  // Today mode: a match is shown only if it kicks off today (by "home|away" key).
-  const isTodayMatch = (m: { home: string; away: string }) =>
-    !todayOnly || (todayKeys?.has(`${m.home}|${m.away}`) ?? false);
+  // Today mode: a match is shown only if it kicks off on the viewer's local
+  // calendar date (kickoff is a UTC instant, so this follows the user's timezone).
+  const isTodayMatch = (m: { kickoff?: string | null }) =>
+    !todayOnly || isKickoffToday(m.kickoff);
 
   // Today mode has no games today → friendly empty state.
   if (

@@ -80,6 +80,38 @@ export function getMatchStatus(
   return Date.now() - ko < LIVE_WINDOW_MS ? "live" : "finished";
 }
 
+// Formats an ISO kickoff instant in the viewer's local timezone, mirroring the
+// server's "Sat 5 July · 18:00" style. Falls back to the server-baked string
+// (site-timezone) when no parseable kickoff is available. Only call this in
+// client-side rendering paths — on the server it would use the server's zone.
+export function formatKickoffLocal(
+  kickoff: string | null | undefined,
+  fallback: string
+): string {
+  if (!kickoff) return fallback;
+  const d = new Date(kickoff);
+  if (isNaN(d.getTime())) return fallback;
+  return (
+    d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" }) +
+    " · " +
+    d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+  );
+}
+
+// True when the kickoff instant falls on the viewer's local calendar date.
+// Client-side only (uses the runtime's timezone) — drives the Today filter.
+export function isKickoffToday(kickoff: string | null | undefined): boolean {
+  if (!kickoff) return false;
+  const ko = new Date(kickoff);
+  if (isNaN(ko.getTime())) return false;
+  const now = new Date();
+  return (
+    ko.getFullYear() === now.getFullYear() &&
+    ko.getMonth() === now.getMonth() &&
+    ko.getDate() === now.getDate()
+  );
+}
+
 export function minutesUntilKickoff(kickoffTime: string): number {
   const diff = new Date(kickoffTime).getTime() - Date.now();
   return Math.floor(diff / 60000);

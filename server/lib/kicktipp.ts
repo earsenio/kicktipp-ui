@@ -686,10 +686,7 @@ async function getLeaderboard(session: UserSession, matchday?: number, bonus = f
         const rawDate = $(cols[0]).text().trim();
         const parsedDate = parseMatchDate(rawDate);
         matches!.push({
-          date: parsedDate
-            ? parsedDate.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "long" })
-              + " · " + parsedDate.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
-            : rawDate,
+          date: formatMatchDate(parsedDate, rawDate),
           home: $(cols[1]).text().trim(),
           away: $(cols[2]).text().trim(),
           result,
